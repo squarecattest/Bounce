@@ -1,8 +1,13 @@
 import pygame
+
+FPS = 60
+dt = 1 / FPS
+g = -9.8 * 6
+
 pygame.init()
 pygame.display.set_mode((1120, 630))
 screen = pygame.display.set_mode(size = (1120, 630), flags = pygame.RESIZABLE)
-
+print(g * dt)
 class Ball:
     def __init__(self, pos, size):
         self.pos = pos
@@ -10,9 +15,6 @@ class Ball:
         self.vx = 0
         self.vy = 0
         self.onground = True
-
-    def pop(self):
-        self.vy = +16
 
     @property
     def x(self):
@@ -35,7 +37,7 @@ class Ball:
                 self.y = 400 - self.size
                 self.rebounce()
                 return
-            self.vy -= 1
+            self.vy += g * dt
         self.x += self.vx
         if self.vx > 0:
             self.vx -= 1
@@ -64,7 +66,7 @@ class Ball:
         
 ball = Ball((560, 380), 20)
 while True:
-    pygame.time.Clock().tick(60)
+    pygame.time.Clock().tick(FPS)
     events = pygame.event.get()
     for event in events:
         if event.type == pygame.QUIT:
