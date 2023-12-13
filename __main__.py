@@ -1,0 +1,4 @@
+import pygame
+
+FPS = 60
+DEFAULT_SCREEN_SIZE = (1120, 630)
