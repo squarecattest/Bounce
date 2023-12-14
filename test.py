@@ -7,7 +7,6 @@ g = -9.8 * 6
 pygame.init()
 pygame.display.set_mode((1120, 630))
 screen = pygame.display.set_mode(size = (1120, 630), flags = pygame.RESIZABLE)
-print(g * dt)
 class Ball:
     def __init__(self, pos, size):
         self.pos = pos
