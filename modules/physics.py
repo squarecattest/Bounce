@@ -41,9 +41,12 @@ class PhysicsGround:
     '''
     __y_top: NumberType
 
-    def __init__(self, y_top: NumberType):
+    def __init__(self, y_top: NumberType) -> None:
         assert isNumberType(y_top)
         self.__y_top = y_top
+
+    def handle_collision(self, ball: "PhysicsBall") -> bool:
+        return self.__y_top <= ball.position_y + ball.radius
     
     @property
     def position_y_top(self): return self.__y_top
@@ -103,7 +106,7 @@ class PhysicsBall:
     __onground: bool
     __ground: PhysicsGround | PhysicsSlab | None
 
-    def __init__(self, position: tuple[NumberType, NumberType], radius: LengthType) -> None:
+    def __init__(self, position: PosType, radius: LengthType) -> None:
         assert isPosType(position)
         assert isLengthType(radius)
         self.__x, self.__y = position
@@ -122,8 +125,8 @@ class PhysicsBall:
         self.__vy += _GRAVITY * dt
         pass #############
 
-    def detect_collision(self, *args: PhysicsGround | PhysicsSlab):
-        for arg in args:
+    def detect_collision(self, *objs: PhysicsGround | PhysicsSlab):
+        for obj in objs:
             pass
 
     @property
@@ -134,3 +137,13 @@ class PhysicsBall:
     def position_x(self): return self.__x
     @property
     def position_y(self): return self.__y
+    @property
+    def velocity(self): return self.__vx, self.__vy
+    @property
+    def velocity_int(self): return int(self.__vx), int(self.__vy)
+    @property
+    def velocity_x(self): return self.__vx
+    @property
+    def velocity_y(self): return self.__vy
+    @property
+    def radius(self): return self.__radius
