@@ -2,20 +2,17 @@ from typing import Iterable
 from math import isfinite
 
 _GRAVITY = -60
-type PosType = int | float
+_COEFFICIENT_OF_FRICTION = _COF = 0
+type NumberType = int | float
 type LengthType = int | float
+type PosType = tuple[NumberType, NumberType]
+type SizeType = tuple[int, int]
 
-def isPosType(arg) -> bool:
+def isNumberType(arg) -> bool:
     '''
-    Check if an argument is of `PosType`.
+    Check if an argument is of `NumberType`.
     '''
     return isinstance(arg, (int, float)) and isfinite(arg)
-
-def isPosTuple(arg) -> bool:
-    '''
-    Check if an argument is an iterable of two `PosType` element.
-    '''
-    return isinstance(arg, Iterable) and len(arg) == 2 and isPosType(arg[0]) and isPosType(arg[1])
 
 def isLengthType(arg) -> bool:
     '''
@@ -23,15 +20,29 @@ def isLengthType(arg) -> bool:
     '''
     return isinstance(arg, (int, float)) and isfinite(arg) and arg >= 0
 
+def isPosType(arg) -> bool:
+    '''
+    Check if an argument is an iterable of two `NumberType` element.
+    '''
+    return isinstance(arg, Iterable) and len(arg) == 2 \
+        and isNumberType(arg[0]) and isNumberType(arg[1])
+
+def isSizeType(arg) -> bool:
+    '''
+    Check if an argument is of `SizeType`.
+    '''
+    return isinstance(arg, Iterable) and len(arg) == 2 \
+        and isinstance(arg[0], int) and isinstance(arg[1], int)
+
 
 class PhysicsGround:
     '''
     The class represents physical interaction of the ground.
     '''
-    __y_top: PosType
+    __y_top: NumberType
 
-    def __init__(self, y_top: PosType):
-        assert isPosType(y_top)
+    def __init__(self, y_top: NumberType):
+        assert isNumberType(y_top)
         self.__y_top = y_top
     
     @property
@@ -46,21 +57,17 @@ class PhysicsSlab:
     '''
     The class represents physical interaction of a floating slab.
     '''
-    __x: PosType
-    __y: PosType
-    __vx: PosType
+    __x: NumberType
+    __y: NumberType
+    __size: SizeType
+    __vx: NumberType
 
-    def __init__(
-        self,
-        position: tuple[PosType, PosType],
-        size: tuple[int, int],
-        velocity_x: PosType
-    ) -> None:
-        assert isPosTuple(position)
-        assert isinstance(size, Iterable) and len(size) == 2
-        assert isinstance(size[0], int) and isinstance(size[1], int)
-        assert isPosType(velocity_x)
+    def __init__(self, position: PosType, size: SizeType, velocity_x: NumberType) -> None:
+        assert isPosType(position)
+        assert isSizeType(size)
+        assert isNumberType(velocity_x)
         self.__x, self.__y = position
+        self.__size = tuple(size)
         self.__vx = velocity_x
 
     def accelerate(self, dt: float) -> None:
@@ -79,6 +86,8 @@ class PhysicsSlab:
     @property
     def position_y(self): return self.__y
     @property
+    def size(self): return self.size
+    @property
     def velocity_x(self): return self.__vx
 
 
@@ -86,16 +95,16 @@ class PhysicsBall:
     '''
     The class represents physical interaction of a ball.
     '''
-    __x: PosType
-    __y: PosType
-    __vx: PosType
-    __vy: PosType
+    __x: NumberType
+    __y: NumberType
+    __vx: NumberType
+    __vy: NumberType
     __radius: LengthType
     __onground: bool
     __ground: PhysicsGround | PhysicsSlab | None
 
-    def __init__(self, position: tuple[PosType, PosType], radius: LengthType) -> None:
-        assert isPosTuple(position)
+    def __init__(self, position: tuple[NumberType, NumberType], radius: LengthType) -> None:
+        assert isPosType(position)
         assert isLengthType(radius)
         self.__x, self.__y = position
         self.__vx = self.__vy = 0
@@ -111,6 +120,11 @@ class PhysicsBall:
         self.__x += self.__vx * dt
         self.__y -= self.__vy * dt # since y=0 is the top side of the window
         self.__vy += _GRAVITY * dt
+        pass #############
+
+    def detect_collision(self, *args: PhysicsGround | PhysicsSlab):
+        for arg in args:
+            pass
 
     @property
     def position(self): return self.__x, self.__y
