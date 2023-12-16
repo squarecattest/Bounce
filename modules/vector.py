@@ -4,8 +4,8 @@ from math import sqrt, isfinite
 
 type NumberType = int | float
 type LengthType = int | float
-type VecType = tuple[NumberType, NumberType]
-type SizeType = tuple[int, int]
+type VectorType = Vector | Iterable[NumberType, NumberType]
+type SizeType = IntVector
 
 def isNumberType(arg) -> bool:
     '''
@@ -44,6 +44,9 @@ def isSizeType(arg) -> bool:
 
 
 class Vector:
+    '''
+    A two dimensional vector.
+    '''
     __x: NumberType
     __y: NumberType
     @overload
@@ -186,6 +189,9 @@ class Vector:
 
 
 class IntVector(Vector):
+    '''
+    A two dimensional vector with integer component.
+    '''
     __x: int
     __y: int
     @overload
@@ -323,5 +329,3 @@ class IntVector(Vector):
         if not isNumberType(__y):
             raise TypeError("Invalid setter argument")
         self.__y = int(__y)
-
-type SizeType = IntVector
