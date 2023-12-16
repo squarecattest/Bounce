@@ -1,43 +1,13 @@
-from typing import Iterable
-from math import isfinite
+from vector import *
+
 
 _GRAVITY = -60
-_COEFFICIENT_OF_FRICTION = _COF = 0
-type NumberType = int | float
-type LengthType = int | float
-type PosType = tuple[NumberType, NumberType]
-type SizeType = tuple[int, int]
-
-def isNumberType(arg) -> bool:
-    '''
-    Check if an argument is of `NumberType`.
-    '''
-    return isinstance(arg, (int, float)) and isfinite(arg)
-
-def isLengthType(arg) -> bool:
-    '''
-    Check if an argument is of `LengthType`.
-    '''
-    return isinstance(arg, (int, float)) and isfinite(arg) and arg >= 0
-
-def isPosType(arg) -> bool:
-    '''
-    Check if an argument is an iterable of two `NumberType` element.
-    '''
-    return isinstance(arg, Iterable) and len(arg) == 2 \
-        and isNumberType(arg[0]) and isNumberType(arg[1])
-
-def isSizeType(arg) -> bool:
-    '''
-    Check if an argument is of `SizeType`.
-    '''
-    return isinstance(arg, Iterable) and len(arg) == 2 \
-        and isinstance(arg[0], int) and isinstance(arg[1], int)
-
+# Since the screen is y-positive downwards, all "y positions" are stored in negation, and
+# "y velocity" and "y acceleration" are kept unmodified.
 
 class PhysicsGround:
     '''
-    The class represents physical interaction of the ground.
+    The class represents physical interaction a flat ground.
     '''
     __y_top: NumberType
 
@@ -45,8 +15,18 @@ class PhysicsGround:
         assert isNumberType(y_top)
         self.__y_top = y_top
 
-    def handle_collision(self, ball: "PhysicsBall") -> bool:
+    def in_collision(self, ball: "PhysicsBall") -> bool:
+        '''
+        Check if colliding with the ball.
+        '''
         return self.__y_top <= ball.position_y + ball.radius
+    
+    def collision_unit_vector(self, ball: "PhysicsBall") -> VecType:
+        '''
+        Return the acceleration direction to the ball due to collision. This
+        function does NOT check if colliding.
+        '''
+        return 0, -1
     
     @property
     def position_y_top(self): return self.__y_top
@@ -65,8 +45,8 @@ class PhysicsSlab:
     __size: SizeType
     __vx: NumberType
 
-    def __init__(self, position: PosType, size: SizeType, velocity_x: NumberType) -> None:
-        assert isPosType(position)
+    def __init__(self, position: VecType, size: SizeType, velocity_x: NumberType) -> None:
+        assert isVecType(position)
         assert isSizeType(size)
         assert isNumberType(velocity_x)
         self.__x, self.__y = position
@@ -80,6 +60,34 @@ class PhysicsSlab:
         assert isinstance(dt, float)
         self.__x += self.__vx * dt
 
+    def in_collision(self, ball: "PhysicsBall") -> bool:
+        '''
+        Check if colliding with the ball.
+        '''
+        if self.__x + self.size_x <= ball.position_x - ball.radius:
+            return True
+        if self.__x - self.size_x >= ball.position_x + ball.radius:
+            return True
+        if self.__y - self.
+        return self.position_y_top >= ball.position_y - ball.radius
+    
+    def collision_unit_vector(self, ball: "PhysicsBall") -> VecType:
+        '''
+        Return the acceleration unit vector to the ball due to collision. This
+        function does NOT check if colliding.
+        '''
+        return 0, 1
+
+    def handle_collision(self, ball: "PhysicsBall") -> CollisionType:
+        '''
+        Check the collision type of the ball.
+        '''
+        assert isinstance(ball, PhysicsBall)
+        if self.__x + self.size_x:pass
+        if self.__y_top <= ball.position_y + ball.radius:
+            return _COLLISION_BOTTOM
+        return _COLLISION_NONE
+
     @property
     def position(self): return self.__x, self.__y
     @property
@@ -89,9 +97,17 @@ class PhysicsSlab:
     @property
     def position_y(self): return self.__y
     @property
-    def size(self): return self.size
+    def size(self): return self.__size
+    @property
+    def size_x(self): return self.__size[0]
+    @property
+    def size_y(self): return self.__size[1]
     @property
     def velocity_x(self): return self.__vx
+    @property
+    def topleft_corner(self): return self.__x - self.size_x, self.__y - self.size_y
+
+
 
 
 class PhysicsBall:
@@ -106,8 +122,8 @@ class PhysicsBall:
     __onground: bool
     __ground: PhysicsGround | PhysicsSlab | None
 
-    def __init__(self, position: PosType, radius: LengthType) -> None:
-        assert isPosType(position)
+    def __init__(self, position: VecType, radius: LengthType) -> None:
+        assert isVecType(position)
         assert isLengthType(radius)
         self.__x, self.__y = position
         self.__vx = self.__vy = 0
@@ -121,7 +137,7 @@ class PhysicsBall:
         '''
         assert isinstance(dt, float)
         self.__x += self.__vx * dt
-        self.__y -= self.__vy * dt # since y=0 is the top side of the window
+        self.__y += self.__vy * dt # since y=0 is the top side of the window
         self.__vy += _GRAVITY * dt
         pass #############
 
