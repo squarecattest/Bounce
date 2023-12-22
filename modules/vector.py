@@ -63,6 +63,9 @@ class Vector:
             self.__x, self.__y = args[0], args[1]
         else:
             raise TypeError("Invalid initialization argument")
+        
+    def __neg__(self) -> "Vector":
+        return Vector(-self.__x, -self.__y)
 
     def __add__(self, __v: "Vector") -> "Vector":
         if not isVector(__v):
@@ -246,6 +249,9 @@ class IntVector(Vector):
             self.__x, self.__y = int(args[0]), int(args[1])
         else:
             raise TypeError("Invalid initialization argument")
+        
+    def __neg__(self) -> "IntVector":
+        return IntVector(-self.__x, -self.__y)
 
     @_overload
     def __add__(self, __v: "IntVector") -> "IntVector": ...
