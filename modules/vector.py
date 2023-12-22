@@ -23,25 +23,26 @@ def isVector(arg) -> bool:
     '''
     Check if an argument is an iterable of two numbers.
     '''
-    return isinstance(arg, Vector) or \
-        (isinstance(arg, _Iterable) and len(arg) == 2 \
-            and isNumber(arg[0]) and isNumber(arg[1]))
+    return isinstance(arg, Vector) or (
+        isinstance(arg, _Iterable) and getattr(arg, "__len__", False) and len(arg) == 2 \
+        and all(isNumber(x) for x in arg)
+    )
 
 def isIntVector(arg) -> bool:
     '''
     Check if an argument is an iterable of two integer number.
     '''
-    return isinstance(arg, IntVector) or \
-        (isinstance(arg, _Iterable) and len(arg) == 2 \
-        and isinstance(arg[0], int) and isinstance(arg[1], int))
+    return isinstance(arg, IntVector) or (
+        isinstance(arg, _Iterable) and getattr(arg, "__len__", False) and len(arg) == 2 \
+        and all(isinstance(x, int) for x in arg)
+    )
 
 def isPosIntVector(arg) -> bool:
     '''
     Check if an argument is an iterable of two positive integer number.
     '''
-    return isinstance(arg, _Iterable) and len(arg) == 2 \
-        and isinstance(arg[0], int) and isinstance(arg[1], int) \
-        and arg[0] > 0 and arg[1] > 0
+    return isinstance(arg, _Iterable) and getattr(arg, "__len__", False) and len(arg) == 2 \
+        and all(isinstance(x, int) and x > 0 for x in arg)
 
 
 class Vector:
@@ -63,6 +64,11 @@ class Vector:
             self.__x, self.__y = args[0], args[1]
         else:
             raise TypeError("Invalid initialization argument")
+        
+    def __eq__(self, __v: VectorType) -> bool:
+        if not isVector(__v):
+            return NotImplemented
+        return self.__x == __v[0] and self.__y == __v[1]
         
     def __neg__(self) -> "Vector":
         return Vector(-self.__x, -self.__y)
@@ -160,6 +166,9 @@ class Vector:
     def __iter__(self) -> _Generator[NumberType, _Any, None]:
         yield self.__x
         yield self.__y
+
+    def __len__(self) -> int:
+        return 2
 
     def copy(self) -> "Vector":
         '''
