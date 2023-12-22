@@ -1,15 +1,18 @@
 from vector import *
-from typing import Literal
+from typing import Literal as _Literal, Iterable as _Iterable
+from itertools import product as _product
 from math import pi as _pi
+
 _RAD_INV = 180 / _pi
-_GRAVITY = -60
+
+# Constant Settings
+_GRAVITY = Vector(0, 240)
 _COLLISION_SCALE, _COLLISION_OFFSET = 1, 0
 _SLIDING_F_SCALE, _SLIDING_F_OFFSET = 0.96, 0.01
 _ROLLING_R_SCALE, _ROLLING_R_OFFSET = 0.99, 0.1
-# Since the screen is y-positive downwards, all "y positions" are stored in negation, and
-# "y velocity" and "y acceleration" are kept unmodified.
 
-def sign(number: NumberType) -> Literal[-1, 0, 1]:
+
+def sign(number: NumberType) -> _Literal[-1, 0, 1]:
     '''
     Mathematical sign function.
     '''
@@ -44,6 +47,7 @@ def linear_contraction(original: Vector, center: Vector, scale: float, offset: f
     if mag < offset:
         return center.copy()
     return center + unit * (mag - offset)
+
     
 class PhysicsGround:
     '''
@@ -57,10 +61,19 @@ class PhysicsGround:
 
     def tick(self, dt: float) -> None:
         '''
-        Change the position and velocity with respect to time interval `dt`. Nothing changed for 
-        a ground since it is motionless.
+        Change the position and velocity with respect to time interval `dt`. Nothing changed 
+        for a ground since it is motionless.
         '''
         pass
+
+    def check_collision(self, ball: "PhysicsBall") -> Vector | None:
+        '''
+        Check if colliding with the ball. If the objects are colliding, return the normal 
+        vector of the contact point. Return `None` if not colliding.
+        '''
+        if self.__y_top <= ball.pos_y + ball.radius:
+            return Vector(0, -1)
+        return None
 
     def in_collision(self, ball: "PhysicsBall") -> bool:
         '''
@@ -75,15 +88,17 @@ class PhysicsGround:
         '''
         return 0, -1
     
-    def get_normal(self, arg):
+    def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
         return Vector(0, -1)
     
+    @property
+    def position(self): return Vector(0, self.__y_top)
     @property
     def position_y_top(self): return self.__y_top
     @property
     def position_y_top_int(self): return int(self.__y_top)
     @property
-    def velocity(self): return Vector(0, 0)
+    def velocity(self): return Vector.zero
     
 
 class PhysicsSlab:
@@ -92,67 +107,71 @@ class PhysicsSlab:
     '''
     __x: NumberType
     __y: NumberType
-    __size: SizeType
+    __pos: Vector
     __v: Vector
+    __size: SizeType
 
     def __init__(self, position: VectorType, size: SizeType, velocity_x: NumberType) -> None:
+        self.__pos = Vector(position)
         self.__x, self.__y = position
         self.__size = tuple(size)
         self.__v = Vector(velocity_x, 0)
 
     def tick(self, dt: float) -> None:
         '''
-        Change the position and velocity of the slab with respect to time interval `dt`. Velocity 
-        is constant for a slab.
+        Change the position and velocity of the slab with respect to time interval `dt`. 
+        Velocity is constant for a slab.
         '''
-        self.__x += self.__v.x * dt
+        self.__pos += self.__v * dt
 
-    def in_collision(self, ball: "PhysicsBall") -> bool:
+    def check_collision(self, ball: "PhysicsBall") -> Vector | None:
         '''
-        Check if colliding with the ball.
+        Check if colliding with the ball. If the objects are colliding, return the normal 
+        vector of the contact point. Return `None` if not colliding.
         '''
-        if self.__x + self.size_x <= ball.position_x - ball.radius:
-            return True
-        if self.__x - self.size_x >= ball.position_x + ball.radius:
-            return True
-        #if self.__y - self.
-        return self.position_y_top >= ball.position_y - ball.radius
+        x_range = self.__pos.x - self.__size[0] // 2, self.__pos.x + self.__size[0] // 2
+        y_range = self.__pos.y - self.__size[1] // 2, self.__pos.y + self.__size[1] // 2
+
+        # Check sides
+        if x_range[0] <= ball.pos_x <= x_range[1]:
+            if y_range[0] <= ball.pos_y + ball.radius <= y_range[1]:
+                return Vector(0, -1)
+            if y_range[0] <= ball.pos_y - ball.radius <= y_range[1]:
+                return Vector(0, 1)
+        if y_range[0] <= ball.pos_y <= y_range[1]:
+            if x_range[0] <= ball.pos_x + ball.radius <= x_range[1]:
+                return Vector(-1, 0)
+            if x_range[0] <= ball.pos_x - ball.radius <= x_range[1]:
+                return Vector(1, 0)
+
+        # Check corners
+        ball_pos = ball.position
+        for x, y in _product(x_range, y_range):
+            if (vec := ball_pos - Vector(x, y)).magnitude <= ball.radius:
+                return vec
+
+        # Not colliding
+        return None
     
-    def collision_unit_vector(self, ball: "PhysicsBall") -> VectorType:
+    def check_onground(self, ball: "PhysicsBall") -> bool:
         '''
-        Return the acceleration unit vector to the ball due to collision. This function does NOT 
-        check if colliding.
+        Check if the grounded ball is still on the ground.
         '''
-        return 0, 1
-
-    def handle_collision(self, ball: "PhysicsBall") -> None:
+        return self.__pos.x - self.__size[0] // 2 <= ball.pos_x \
+            <= self.__pos.x + self.__size[0] // 2
+    
+    def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
         '''
-        Check the collision type of the ball.
+        To be documented
         '''
-        assert isinstance(ball, PhysicsBall)
-        if self.__x + self.size_x:pass
-        if self.__y_top <= ball.position_y + ball.radius:
-            return _COLLISION_BOTTOM
-        return _COLLISION_NONE
+        return Vector(0, -1)
 
     @property
-    def position(self): return self.__x, self.__y
-    @property
-    def position_int(self): return int(self.__x), int(self.__y)
-    @property
-    def position_x(self): return self.__x
-    @property
-    def position_y(self): return self.__y
+    def position(self): return self.__pos.copy()
     @property
     def size(self): return self.__size
     @property
-    def size_x(self): return self.__size[0]
-    @property
-    def size_y(self): return self.__size[1]
-    @property
     def velocity(self): return self.__v.copy()
-    @property
-    def topleft_corner(self): return self.__x - self.size_x, self.__y - self.size_y
 
 
 class PhysicsBall:
@@ -174,24 +193,71 @@ class PhysicsBall:
         assert isPosNumber(radius)
         self.__pos = Vector(position)
         self.__angle = 0
-        self.__v = Vector(0, 0)
+        self.__v = Vector.zero
         self.__radius = radius
         self.__onground = False
         self.__ground = None
 
-    def accelerate(self, dt: float) -> None:
+    def tick(self, dt: float, objs) -> None:
         '''
-        Change the position and velocity of the ball with respect to time interval `dt`.
+        To be documented
         '''
         assert isinstance(dt, float)
         self.__pos += self.__v * dt
         self.__angle += self.__w * dt
+        if self.__onground:
+            if self.__ground.check_onground(self):
+                self.handle_friction()
+                return
+            self.__onground = False
+            self.__ground = None
+        self.__v += _GRAVITY * dt
+        self.detect_collision(objs)
         #self.__vy += _GRAVITY * dt
         pass #############
 
-    def detect_collision(self, *objs: PhysicsGround | PhysicsSlab):
+    def bounce(self): ... # if self.__onground: self.__onground = False; ...
+
+    def detect_collision(self, objs: _Iterable[PhysicsGround | PhysicsSlab]) -> None:
+        '''
+        To be documented
+        '''
         for obj in objs:
-            pass
+            if (collision_vector := obj.check_collision(self)) is not None:
+                self.collide(obj.velocity, collision_vector, obj)
+                self.handle_friction(obj.velocity, collision_vector)
+                return
+
+    def collide(
+            self, 
+            surface_velocity: Vector, 
+            surface_normal: Vector, 
+            surface: PhysicsGround | PhysicsSlab
+        ) -> None:
+        '''
+        Apply the given collision to the ball.
+    
+        `surface_velocity`:
+            The velocity of the surface which the ball collides with.
+        `surface_normal`:
+            The normal vector of the surface at the contact point. Should be pointing outward.
+        `surface`:
+            The object which the ball collides with. Used as a possible ground for the ball.
+        '''
+        rel_velocity = self.__v - surface_velocity
+        rel_normal_velocity = rel_velocity.project_on(surface_normal)
+        rel_tangent_velocity = rel_velocity - rel_normal_velocity
+
+        if rel_normal_velocity * surface_normal > 0:
+            return
+        rel_normal_velocity = linear_contraction(
+            -rel_normal_velocity, Vector.zero, _COLLISION_SCALE, _COLLISION_OFFSET
+        )
+        if rel_normal_velocity.is_zerovec and surface_normal == (0, -1):
+            self.__onground = True
+            self.__ground = surface
+            self.__pos.y = surface.position.y - self.__radius
+        self.__v = surface_velocity + rel_tangent_velocity + rel_normal_velocity
 
     def handle_friction(
             self, surface_velocity: Vector = None, surface_normal: Vector = None
@@ -207,7 +273,7 @@ class PhysicsBall:
         '''
         if self.__onground:
             surface_velocity = self.__ground.velocity
-            surface_normal = self.__ground.get_normal(self)
+            surface_normal = self.__ground.get_normal_vector(self)
         
         surface_tangent = Vector(-surface_normal[1], surface_normal[0]).unit
         surface_projected_velocity = surface_velocity.project_on(surface_tangent)
@@ -230,10 +296,10 @@ class PhysicsBall:
         
         # Rolling friction / Rolling resistence
         rel_linear_velocity = linear_contraction(
-            rel_linear_velocity, Vector(0, 0), _ROLLING_R_SCALE, _ROLLING_R_OFFSET
+            rel_linear_velocity, Vector.zero, _ROLLING_R_SCALE, _ROLLING_R_OFFSET
         )
         rel_rolling_velocity = linear_contraction(
-            rel_rolling_velocity, Vector(0, 0), _ROLLING_R_SCALE, _ROLLING_R_OFFSET
+            rel_rolling_velocity, Vector.zero, _ROLLING_R_SCALE, _ROLLING_R_OFFSET
         )
 
         # Change back to the normal frame of reference
@@ -241,7 +307,6 @@ class PhysicsBall:
         rolling_velocity = rel_rolling_velocity + surface_projected_velocity
         self.__w = rolling_velocity.magnitude * sign(rolling_velocity * surface_tangent) \
             / self.radius
-        print(self.__v.magnitude, self.__w * self.__radius)
         
     def temp(self, surface: PhysicsGround):
         self.__onground = True
@@ -255,9 +320,9 @@ class PhysicsBall:
     @property
     def position_int(self): return IntVector(self.__pos)
     @property
-    def position_x(self): return self.__x
+    def pos_x(self): return self.__pos.x
     @property
-    def position_y(self): return self.__y
+    def pos_y(self): return self.__pos.y
     @property
     def velocity(self): return self.__vx, self.__vy
     @property
