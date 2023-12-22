@@ -1,6 +1,6 @@
 from collections.abc import Iterable as _Iterable, Generator as _Generator
-from typing import overload, Self, Any
-from math import sqrt, isfinite
+from typing import overload as _overload, Self as _Self, Any as _Any
+from math import sqrt as _sqrt, isfinite as _isfinite
 
 type NumberType = int | float
 type LengthType = int | float
@@ -11,13 +11,13 @@ def isNumber(arg) -> bool:
     '''
     Check if an argument is a real number.
     '''
-    return isinstance(arg, (int, float)) and isfinite(arg)
+    return isinstance(arg, (int, float)) and _isfinite(arg)
 
 def isPosNumber(arg) -> bool:
     '''
     Check if an argument is a positive number.
     '''
-    return isinstance(arg, (int, float)) and isfinite(arg) and arg >= 0
+    return isinstance(arg, (int, float)) and _isfinite(arg) and arg >= 0
 
 def isVector(arg) -> bool:
     '''
@@ -50,9 +50,9 @@ class Vector:
     '''
     __x: NumberType
     __y: NumberType
-    @overload
+    @_overload
     def __init__(self, __x: NumberType, __y: NumberType, /) -> None: ...
-    @overload
+    @_overload
     def __init__(self, __v: _Iterable[NumberType, NumberType]) -> None: ...
 
     def __init__(self, *args) -> None:
@@ -69,7 +69,7 @@ class Vector:
             return NotImplemented
         return Vector(self.__x + __v.__x, self.__y + __v.__y)
     
-    def __iadd__(self, __v: "Vector") -> Self:
+    def __iadd__(self, __v: "Vector") -> _Self:
         if not isVector(__v):
             return NotImplemented
         self.__x += __v.__x
@@ -81,16 +81,16 @@ class Vector:
             return NotImplemented
         return Vector(self.__x - __v.__x, self.__y - __v.__y)
     
-    def __isub__(self, __v: "Vector") -> Self:
+    def __isub__(self, __v: "Vector") -> _Self:
         if not isVector(__v):
             return NotImplemented
         self.__x -= __v.__x
         self.__y -= __v.__y
         return self
 
-    @overload
+    @_overload
     def __mul__(self, __c: NumberType) -> "Vector": ...
-    @overload
+    @_overload
     def __mul__(self, __v: "Vector") -> NumberType: ...
 
     def __mul__(self, arg) -> "Vector | NumberType":
@@ -110,7 +110,7 @@ class Vector:
             return NotImplemented
         return Vector(__c * self.__x, __c * self.__y)
     
-    def __imul__(self, __c: NumberType) -> Self:
+    def __imul__(self, __c: NumberType) -> _Self:
         if not isNumber(__c):
             return NotImplemented
         self.__x *= __c
@@ -124,7 +124,7 @@ class Vector:
             raise ZeroDivisionError
         return Vector(self.__x / __c, self.__y / __c)
     
-    def __itruediv__(self, __c: NumberType) -> Self:
+    def __itruediv__(self, __c: NumberType) -> _Self:
         if not isNumber(__c):
             return NotImplemented
         if __c == 0:
@@ -154,7 +154,7 @@ class Vector:
         else:
             raise IndexError("Invalid index")
 
-    def __iter__(self) -> _Generator[NumberType, Any, None]:
+    def __iter__(self) -> _Generator[NumberType, _Any, None]:
         yield self.__x
         yield self.__y
 
@@ -201,7 +201,7 @@ class Vector:
         '''
         The length / magnitude / norm of itself.
         '''
-        return sqrt(self.__x ** 2 + self.__y ** 2)
+        return _sqrt(self.__x ** 2 + self.__y ** 2)
     
     @property
     def squared_magnitude(self) -> NumberType:
@@ -233,9 +233,9 @@ class IntVector(Vector):
     '''
     __x: int
     __y: int
-    @overload
+    @_overload
     def __init__(self, __x: int, __y: int, /) -> None: ...
-    @overload
+    @_overload
     def __init__(self, __v: _Iterable[int, int]) -> None: ...
 
     def __init__(self, *args) -> None:
@@ -247,9 +247,9 @@ class IntVector(Vector):
         else:
             raise TypeError("Invalid initialization argument")
 
-    @overload
+    @_overload
     def __add__(self, __v: "IntVector") -> "IntVector": ...
-    @overload
+    @_overload
     def __add__(self, __v: Vector) -> Vector: ...
 
     def __add__(self, __v: "IntVector | Vector") -> "IntVector | Vector":
@@ -259,16 +259,16 @@ class IntVector(Vector):
             return Vector(self.__x + __v.__x, self.__y + __v.__y)
         return NotImplemented
     
-    def __iadd__(self, __v: "Vector") -> Self:
+    def __iadd__(self, __v: "Vector") -> _Self:
         if not isVector(__v):
             return NotImplemented
         self.__x += int(__v.__x)
         self.__y += int(__v.__y)
         return self
     
-    @overload
+    @_overload
     def __sub__(self, __v: "IntVector") -> "IntVector": ...
-    @overload
+    @_overload
     def __sub__(self, __v: Vector) -> Vector: ...
 
     def __sub__(self, __v: "IntVector | Vector") -> "IntVector | Vector":
@@ -278,20 +278,20 @@ class IntVector(Vector):
             return Vector(self.__x - __v.__x, self.__y - __v.__y)
         return NotImplemented
     
-    def __isub__(self, __v: "Vector") -> Self:
+    def __isub__(self, __v: "Vector") -> _Self:
         if not isVector(__v):
             return NotImplemented
         self.__x += int(-__v.__x)
         self.__y += int(-__v.__y)
         return self
 
-    @overload
+    @_overload
     def __mul__(self, __c: int) -> "IntVector": ...
-    @overload
+    @_overload
     def __mul__(self, __c: NumberType) -> Vector: ...
-    @overload
+    @_overload
     def __mul__(self, __v: "IntVector") -> int: ...
-    @overload
+    @_overload
     def __mul__(self, __v: Vector) -> NumberType: ...
 
     def __mul__(self, arg) -> "IntVector | Vector | int | NumberType":
@@ -308,9 +308,9 @@ class IntVector(Vector):
             return self.__x * arg[0] + self.__y * arg[1]
         return NotImplemented
         
-    @overload
+    @_overload
     def __rmul__(self, __c: int) -> "IntVector": ...
-    @overload
+    @_overload
     def __rmul__(self, __c: NumberType) -> Vector: ...
 
     def __rmul__(self, __c: int | NumberType) -> "IntVector | Vector":
@@ -320,7 +320,7 @@ class IntVector(Vector):
             return Vector(__c * self.__x, __c * self.__y)
         return NotImplemented
     
-    def __imul__(self, __c: NumberType) -> Self:
+    def __imul__(self, __c: NumberType) -> _Self:
         if not isNumber(__c):
             return NotImplemented
         self.__x = int(self.__x * __c)
@@ -348,7 +348,7 @@ class IntVector(Vector):
         else:
             raise IndexError("Invalid index")
 
-    def __iter__(self) -> _Generator[int, Any, None]:
+    def __iter__(self) -> _Generator[int, _Any, None]:
         yield self.__x
         yield self.__y
 
