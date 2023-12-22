@@ -217,6 +217,7 @@ class PhysicsBall:
         pass #############
 
     def bounce(self): ... # if self.__onground: self.__onground = False; ...
+        # TODO
 
     def detect_collision(self, objs: _Iterable[PhysicsGround | PhysicsSlab]) -> None:
         '''
