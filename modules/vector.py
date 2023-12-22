@@ -232,11 +232,19 @@ class Vector:
         return self / magnitude
     
     @property
-    def IntTuple(self) -> tuple[int, int]:
+    def inttuple(self) -> tuple[int, int]:
         '''
         The integer tuple representation of itself.
         '''
         return int(self.__x), int(self.__y)
+    
+    @classmethod
+    @property
+    def zero(cls) -> "Vector":
+        '''
+        Return a zero vector.
+        '''
+        return cls(0, 0)
 
 
 class IntVector(Vector):
