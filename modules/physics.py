@@ -199,6 +199,7 @@ class PhysicsBall:
         '''
         Apply the simulated friction within a tick to the ball. If the ball is on the ground, 
         the surface parameters need not be passed.
+    
         `surface_velocity`:
             The velocity of the surface.
         `surface_normal`:
