@@ -6,10 +6,12 @@ from math import pi as _pi
 _RAD_INV = 180 / _pi
 
 # Constant Settings
-_GRAVITY = Vector(0, 240)
-_COLLISION_SCALE, _COLLISION_OFFSET = 1, 0
-_SLIDING_F_SCALE, _SLIDING_F_OFFSET = 0.96, 0.01
+_GRAVITY = Vector(0, 960)
+_BOUNCE_VELOCITY = Vector(0, -640)
+_COLLISION_SCALE, _COLLISION_OFFSET = 0.6, 20
+_SLIDING_F_SCALE, _SLIDING_F_OFFSET = 0.92, 0.01
 _ROLLING_R_SCALE, _ROLLING_R_OFFSET = 0.99, 0.1
+_HANDLING_TIMES_ONCOLLISION = 3
 
 
 def sign(number: NumberType) -> _Literal[-1, 0, 1]:
@@ -75,6 +77,12 @@ class PhysicsGround:
             return Vector(0, -1)
         return None
 
+    def check_onground(self, ball: "PhysicsBall") -> bool:
+        '''
+        Check if the grounded ball is still on the ground.
+        '''
+        return True
+    
     def in_collision(self, ball: "PhysicsBall") -> bool:
         '''
         Check if colliding with the ball.
@@ -93,6 +101,8 @@ class PhysicsGround:
     
     @property
     def position(self): return Vector(0, self.__y_top)
+    @property
+    def surface_y(self): return self.__y_top
     @property
     def position_y_top(self): return self.__y_top
     @property
@@ -169,6 +179,8 @@ class PhysicsSlab:
     @property
     def position(self): return self.__pos.copy()
     @property
+    def surface_y(self): return self.__pos.y - self.__size[1] // 2
+    @property
     def size(self): return self.__size
     @property
     def velocity(self): return self.__v.copy()
@@ -194,11 +206,18 @@ class PhysicsBall:
         self.__pos = Vector(position)
         self.__angle = 0
         self.__v = Vector.zero
+        self.__w = 0
         self.__radius = radius
         self.__onground = False
         self.__ground = None
 
-    def tick(self, dt: float, objs) -> None:
+    def tick(
+            self, 
+            dt: float, 
+            objs: _Iterable[PhysicsGround | PhysicsSlab], 
+            *, 
+            bounce: bool
+        ) -> None:
         '''
         To be documented
         '''
@@ -208,6 +227,8 @@ class PhysicsBall:
         if self.__onground:
             if self.__ground.check_onground(self):
                 self.handle_friction()
+                if bounce:
+                    self.bounce()
                 return
             self.__onground = False
             self.__ground = None
@@ -216,8 +237,15 @@ class PhysicsBall:
         #self.__vy += _GRAVITY * dt
         pass #############
 
-    def bounce(self): ... # if self.__onground: self.__onground = False; ...
-        # TODO
+    def bounce(self):
+        '''
+        To be documented
+        '''
+        if not self.__onground:
+            return
+        self.__v += _BOUNCE_VELOCITY
+        self.__onground = False
+        self.__ground = None
 
     def detect_collision(self, objs: _Iterable[PhysicsGround | PhysicsSlab]) -> None:
         '''
@@ -226,7 +254,11 @@ class PhysicsBall:
         for obj in objs:
             if (collision_vector := obj.check_collision(self)) is not None:
                 self.collide(obj.velocity, collision_vector, obj)
-                self.handle_friction(obj.velocity, collision_vector)
+                self.handle_friction(
+                    obj.velocity, 
+                    collision_vector, 
+                    times=_HANDLING_TIMES_ONCOLLISION
+                )
                 return
 
     def collide(
@@ -257,11 +289,15 @@ class PhysicsBall:
         if rel_normal_velocity.is_zerovec and surface_normal == (0, -1):
             self.__onground = True
             self.__ground = surface
-            self.__pos.y = surface.position.y - self.__radius
+            self.__pos.y = surface.surface_y - self.__radius
         self.__v = surface_velocity + rel_tangent_velocity + rel_normal_velocity
 
     def handle_friction(
-            self, surface_velocity: Vector = None, surface_normal: Vector = None
+            self, 
+            surface_velocity: Vector = None, 
+            surface_normal: Vector = None, 
+            *, 
+            times: int = 1
         ) -> None:
         '''
         Apply the simulated friction within a tick to the ball. If the ball is on the ground, 
@@ -280,20 +316,20 @@ class PhysicsBall:
         surface_projected_velocity = surface_velocity.project_on(surface_tangent)
         projected_velocity = self.__v.project_on(surface_tangent)
         normal_velocity = self.__v - projected_velocity
-        rolling_velocity = surface_tangent * self.__w * self.__radius
 
         # Change to relative inertial frame of reference
         rel_linear_velocity = surface_projected_velocity - projected_velocity
-        rel_rolling_velocity = rolling_velocity - surface_projected_velocity
+        rel_rolling_velocity = surface_tangent * self.__w * self.__radius
         rel_average_velocity = (rel_linear_velocity + rel_rolling_velocity) / 2
 
         # Sliding friction
-        rel_linear_velocity = linear_contraction(
-            rel_linear_velocity, rel_average_velocity, _SLIDING_F_SCALE, _SLIDING_F_OFFSET
-        )
-        rel_rolling_velocity = linear_contraction(
-            rel_rolling_velocity, rel_average_velocity, _SLIDING_F_SCALE, _SLIDING_F_OFFSET
-        )
+        for _ in range(times):
+            rel_linear_velocity = linear_contraction(
+                rel_linear_velocity, rel_average_velocity, _SLIDING_F_SCALE, _SLIDING_F_OFFSET
+            )
+            rel_rolling_velocity = linear_contraction(
+                rel_rolling_velocity, rel_average_velocity, _SLIDING_F_SCALE, _SLIDING_F_OFFSET
+            )
         
         # Rolling friction / Rolling resistence
         rel_linear_velocity = linear_contraction(
@@ -305,8 +341,7 @@ class PhysicsBall:
 
         # Change back to the normal frame of reference
         self.__v = surface_projected_velocity - rel_linear_velocity + normal_velocity
-        rolling_velocity = rel_rolling_velocity + surface_projected_velocity
-        self.__w = rolling_velocity.magnitude * sign(rolling_velocity * surface_tangent) \
+        self.__w = rel_rolling_velocity.magnitude * sign(rel_rolling_velocity * surface_tangent) \
             / self.radius
         
     def temp(self, surface: PhysicsGround):
@@ -324,14 +359,6 @@ class PhysicsBall:
     def pos_x(self): return self.__pos.x
     @property
     def pos_y(self): return self.__pos.y
-    @property
-    def velocity(self): return self.__vx, self.__vy
-    @property
-    def velocity_int(self): return int(self.__vx), int(self.__vy)
-    @property
-    def velocity_x(self): return self.__vx
-    @property
-    def velocity_y(self): return self.__vy
     @property
     def angle(self): return self.__angle
     @property
