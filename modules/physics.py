@@ -221,7 +221,6 @@ class PhysicsBall:
         '''
         To be documented
         '''
-        assert isinstance(dt, float)
         self.__pos += self.__v * dt
         self.__angle += self.__w * dt
         if self.__onground:
@@ -237,9 +236,9 @@ class PhysicsBall:
         #self.__vy += _GRAVITY * dt
         pass #############
 
-    def bounce(self):
+    def bounce(self) -> None:
         '''
-        To be documented
+        Apply a bounce on the ball. If the ball is not on ground, there will be no effect.
         '''
         if not self.__onground:
             return
