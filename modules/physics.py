@@ -188,7 +188,6 @@ class PhysicsSlab:
 
     def __init__(self, position: VectorType, size: SizeType, velocity_x: NumberType) -> None:
         self.__pos = Vector(position)
-        self.__x, self.__y = position
         self.__size = tuple(size)
         self.__v = Vector(velocity_x, 0)
 
