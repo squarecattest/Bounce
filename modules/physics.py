@@ -115,8 +115,6 @@ class PhysicsSlab:
     '''
     The class representing physical interaction of a floating slab.
     '''
-    __x: NumberType
-    __y: NumberType
     __pos: Vector
     __v: Vector
     __size: SizeType
@@ -190,8 +188,6 @@ class PhysicsBall:
     '''
     The class represents physical interaction of a ball.
     '''
-    #__x: NumberType
-    #__y: NumberType
     __pos: Vector
     __angle: NumberType
     __v: Vector
@@ -306,6 +302,8 @@ class PhysicsBall:
             The velocity of the surface.
         `surface_normal`:
             The normal vector of the surface at the contact point. Should be pointing outward.
+        `times`:
+            The times of sliding friction applied.
         '''
         if self.__onground:
             surface_velocity = self.__ground.velocity
