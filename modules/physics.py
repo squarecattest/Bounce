@@ -96,7 +96,7 @@ class PhysicsObject(_ABC):
         pass
     
     @_abstractmethod
-    def check_onground(self, ball: "PhysicsBall") -> bool:
+    def update_onground(self, ball: "PhysicsBall") -> bool:
         '''
         Check if the on-ground ball is still on this object. Notice that a bounce will 
         automatically remove the on-ground property, so this method only need to check about 
@@ -117,7 +117,7 @@ class PhysicsObject(_ABC):
         Parameters
         ----------
         ball: :class:`PhysicsBall`
-            The contacted ball on this object.
+            The contacting ball on this object.
 
         Returns
         -------
@@ -135,13 +135,6 @@ class PhysicsObject(_ABC):
 class PhysicsGround(PhysicsObject):
     '''
     The class representing physical interaction of a flat ground.
-
-    Properties
-    ----------
-    y_top: :class:`NumberType`
-        (Read-only) The y coordinate of the surface.
-    velocity: :class:`Vector`
-        (Read-only) The velocity of the object. Always a zero vector.
     '''
     __y_top: NumberType
 
@@ -159,23 +152,23 @@ class PhysicsGround(PhysicsObject):
             return Vector.unit_upward
         return None
 
-    def check_onground(self, ball: "PhysicsBall") -> bool:
+    def update_onground(self, ball: "PhysicsBall") -> bool:
         return True
     
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
         return Vector.unit_upward
 
     @property
-    def y_top(self):
+    def y_top(self) -> NumberType:
         '''
         (Read-only) The y coordinate of the surface.
         '''
         return self.__y_top
     
     @property
-    def velocity(self):
+    def velocity(self) -> Vector:
         '''
-        (Read-only) The velocity of the object. Always a zero vector.
+        (Read-only) The velocity of the ground. Always a zero vector.
         '''
         return Vector.zero
 
@@ -183,19 +176,19 @@ class PhysicsGround(PhysicsObject):
 class PhysicsWall(PhysicsObject):
     '''
     The class representing physical interaction of a flat ground.
-    
-    Properties
-    ----------
-    x_side: :class:`NumberType`
-        (Read-only) The x coordinate of the surface.
-    facing: ``PhysicsWall.FACING_LEFT`` or ``PhysicsWall.FACING_RIGHT``
-        (Read-only) The facing of the wall.
-    velocity: :class:`Vector`
-        (Read-only) The velocity of the object. Always a zero vector.
     '''
     __x_side: NumberType
     __facing: bool
 
+    @classmethod
+    @property
+    def FACING_LEFT(cls):
+        return False
+    @classmethod
+    @property
+    def FACING_RIGHT(cls):
+        return True
+    
     def __init__(self, x_side: NumberType, facing: bool):
         '''
         Parameters
@@ -222,54 +215,36 @@ class PhysicsWall(PhysicsObject):
             return Vector.unit_rightward
         if self.__facing == PhysicsWall.FACING_LEFT:
             return Vector.unit_leftward
-
-    @classmethod
-    @property
-    def FACING_LEFT(cls):
-        return False
-    @classmethod
-    @property
-    def FACING_RIGHT(cls):
-        return True
     
     @property
-    def x_side(self):
+    def x_side(self) -> NumberType:
         '''
         (Read-only) The x coordinate of the surface.
         '''
         return self.__x_side
     
     @property
-    def facing(self):
+    def facing(self) -> bool:
         '''
         (Read-only) The facing of the wall.
         '''
         return self.__facing
     
     @property
-    def velocity(self):
+    def velocity(self) -> Vector:
         '''
-        (Read-only) The velocity of the object. Always a zero vector.
+        (Read-only) The velocity of the wall. Always a zero vector.
         '''
         return Vector.zero
 
 
-class PhysicsSlab:
+class PhysicsSlab(PhysicsObject):
     '''
     The class representing physical interaction of a floating slab.
-    
-    Properties
-    ----------
-    x_side: :class:`NumberType`
-        (Read-only) The x coordinate of the surface.
-    facing: ``PhysicsWall.FACING_LEFT`` or ``PhysicsWall.FACING_RIGHT``
-        (Read-only) The facing of the wall.
-    velocity: :class:`Vector`
-        (Read-only) The velocity of the object. Always a zero vector.
     '''
     __pos: Vector
     __v: Vector
-    __size: SizeType
+    __size: tuple[int, int]
 
     def __init__(self, position: VectorType, size: SizeType, velocity_x: NumberType) -> None:
         '''
@@ -294,24 +269,20 @@ class PhysicsSlab:
         self.__pos += self.__v * dt
 
     def check_collision(self, ball: "PhysicsBall") -> Vector | None:
-        '''
-        Check if colliding with the ball. If the objects are colliding, return the normal 
-        vector of the contact point. Return ``None`` if not colliding.
-        '''
         x_range = self.__pos.x - self.__size[0] // 2, self.__pos.x + self.__size[0] // 2
         y_range = self.__pos.y - self.__size[1] // 2, self.__pos.y + self.__size[1] // 2
 
         # Check sides
         if x_range[0] <= ball.pos_x <= x_range[1]:
             if y_range[0] <= ball.pos_y + ball.radius <= y_range[1]:
-                return Vector(0, -1)
+                return Vector.unit_upward
             if y_range[0] <= ball.pos_y - ball.radius <= y_range[1]:
-                return Vector(0, 1)
+                return Vector.unit_downward
         if y_range[0] <= ball.pos_y <= y_range[1]:
             if x_range[0] <= ball.pos_x + ball.radius <= x_range[1]:
-                return Vector(-1, 0)
+                return Vector.unit_leftward
             if x_range[0] <= ball.pos_x - ball.radius <= x_range[1]:
-                return Vector(1, 0)
+                return Vector.unit_rightward
 
         # Check corners
         ball_pos = ball.position
@@ -322,39 +293,45 @@ class PhysicsSlab:
         # Not colliding
         return None
     
-    def check_onground(self, ball: "PhysicsBall") -> bool:
-        '''
-        Check if the grounded ball is still on the ground.
-        '''
+    def update_onground(self, ball: "PhysicsBall") -> bool:
         return self.__pos.x - self.__size[0] // 2 <= ball.pos_x \
             <= self.__pos.x + self.__size[0] // 2
     
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
-        '''
-        To be documented
-        '''
         return Vector(0, -1)
 
     @property
-    def position(self): return self.__pos.copy()
+    def position(self) -> Vector: 
+        '''
+        (Read-only) The position vector of the slab.
+        '''
+        return self.__pos.copy()
+
     @property
-    def y_top(self): return self.__pos.y - self.__size[1] // 2
+    def y_top(self) -> NumberType:
+        '''
+        (Read-only) The y coordinate of the top-side surface.
+        '''
+        return self.__pos.y - self.__size[1] // 2
+    
     @property
-    def size(self): return self.__size
+    def size(self) -> tuple[int, int]:
+        '''
+        (Read-only) The size of the slab.
+        '''
+        return self.__size
+    
     @property
-    def velocity(self): return self.__v.copy()
+    def velocity(self):
+        '''
+        (Read-only) The velocity of the slab.
+        '''
+        return self.__v.copy()
 
 
-class PhysicsBall:
+class PhysicsBall(PhysicsObject):
     '''
     The class represents physical interaction of a ball.
-
-    Parameters
-    ----------
-    position: :class:`VectorType`
-        The vector pointing to its initial position of center.
-    radius: :class:`LengthType`
-        The radius of the ball.
     '''
     __pos: Vector
     __angle: NumberType
@@ -362,13 +339,19 @@ class PhysicsBall:
     __w: NumberType # angular velocity
     __radius: LengthType
     __onground: bool
-    __ground: PhysicsGround | PhysicsSlab | None
+    __ground: PhysicsObject
     __bounceable: bool
     __path_length: LengthType
 
     def __init__(self, position: VectorType, radius: LengthType) -> None:
-        assert isVector(position)
-        assert isPosNumber(radius)
+        '''
+        Parameters
+        ----------
+        position: :class:`VectorType`
+            The vector-like initial position of its center.
+        radius: :class:`LengthType`
+            The radius of the ball.
+        '''
         self.__pos = Vector(position)
         self.__angle = 0
         self.__v = Vector.zero
@@ -379,29 +362,24 @@ class PhysicsBall:
         self.__bounceable = False
         self.__path_length = 0
 
-    def tick(
-            self, 
-            dt: float, 
-            objs: _Iterable[PhysicsGround | PhysicsSlab], 
-            *, 
-            bounce: bool
-        ) -> None:
+    def tick(self, dt: float, objs: _Iterable[PhysicsObject], *, bounce: bool = False) -> None:
         '''
         To be documented
         '''
         self.__pos += self.__v * dt
         self.__angle += self.__w * dt
-        obj_exceptions = []
-        self.check_onground()
-        self.check_bounceability(self.__v.magnitude * dt)
+        self.update_onground()
+        self.update_bounceability(self.__v.magnitude * dt)
         if not self.__onground:
             self.__v += _GRAVITY * dt
+            exception = None
         else:
-            obj_exceptions.append(self.__ground)
+            exception = self.__ground
             self.handle_friction()
         if bounce:
             self.bounce()
-        self.detect_collision(objs, obj_exceptions)
+        for obj in objs:
+            self.handle_collision(obj, exception)
 
     def bounce(self) -> None:
         '''
@@ -413,66 +391,72 @@ class PhysicsBall:
         self.set_onground(False)
         self.set_bounceability(False)
 
-    def detect_collision(
-            self, 
-            objs: _Iterable[PhysicsGround | PhysicsSlab], 
-            obj_exceptions: _Iterable[PhysicsGround | PhysicsSlab]
-        ) -> None:
+    def handle_collision(self, obj: PhysicsObject, exception: PhysicsObject = None) -> None:
         '''
-        To be documented
-        '''
-        for obj in objs:
-            if obj in obj_exceptions:
-                continue
-            if (collision_vector := obj.check_collision(self)) is None:
-                continue
+        Detect and handle the collision of the object and this ball. If collision occurs, a 
+        force is applied on the ball. If further the object is not a wall, friction is also 
+        applied on the ball.
 
-            self.collide(obj.velocity, collision_vector, obj)
-            if isinstance(obj, PhysicsWall):
-                continue
+        Parameters
+        ----------
+        obj: :class:`PhysicsObject`
+            The object to be checked.
+        exception: Optional[:class:`PhysicsObject`]
+            The object to be excluded from possible colliding object list. Usually the ground of
+            the ball.
+        '''
+        if obj is exception:
+            return
+        if (collision_vector := obj.check_collision(self)) is None:
+            return
+        self.collide(obj, obj.velocity, collision_vector)
+        if not isinstance(obj, PhysicsWall):
             self.handle_friction(
                 obj.velocity, 
                 collision_vector, 
                 times=_HANDLING_TIMES_ONCOLLISION
             )
 
-    def collide(
-            self, 
-            surface_velocity: Vector, 
-            surface_normal: Vector, 
-            surface: PhysicsGround | PhysicsSlab
-        ) -> None:
+    def collide(self, obj: PhysicsObject, obj_velocity: Vector, normal_vector: Vector) -> None:
         '''
         Apply the given collision to the ball. If the collision occurs inside a wall, 
         :meth:`wall_stuck_removal` will be called.
-    
-        surface_velocity: :class:`Vector`
-            The velocity of the surface which the ball collides with.
-        surface_normal: :class:`Vector`
-            The normal vector of the surface at the contact point. Should be pointing outward.
-        surface: :class:`PhysicsGround | PhysicsSlab`
-            The object which the ball collides with. Used as a possible ground for the ball.
+        
+        Parameters
+        ----------
+        obj: :class:`PhysicsObject`
+            The object which the ball collides with.
+        obj_velocity: :class:`Vector`
+            The velocity of the object.
+        normal_vector: :class:`Vector`
+            The normal vector of the object at the contact point.
         '''
-        rel_velocity = self.__v - surface_velocity
-        rel_normal_velocity = rel_velocity.project_on(surface_normal)
+        rel_velocity = self.__v - obj_velocity
+        rel_normal_velocity = rel_velocity.project_on(normal_vector)
         rel_tangent_velocity = rel_velocity - rel_normal_velocity
-
-        if rel_normal_velocity * surface_normal > 0:
+        
+        if isinstance(obj, PhysicsBall):
+            raise NotImplementedError
+        if rel_normal_velocity * normal_vector > 0:
             return
+        
         rel_normal_velocity = linear_contraction(
             -rel_normal_velocity, Vector.zero, _COLLISION_SCALE, _COLLISION_OFFSET
         )
-        if rel_normal_velocity.is_zerovec and surface_normal == (0, -1):
-            self.set_onground(True, ground=surface, ground_y=surface.y_top)
-        elif surface_normal * Vector.unit_upward > 0:
+        
+        if rel_normal_velocity.is_zerovec and normal_vector == Vector.unit_upward:
+            self.set_onground(True, ground=obj)
+        elif normal_vector * Vector.unit_upward > 0:
             self.set_bounceability(True)
-        self.__v = surface_velocity + rel_tangent_velocity + rel_normal_velocity
-        if isinstance(surface, PhysicsWall):
-            self.wall_stuck_removal(surface)
-
-    def wall_stuck_removal(self, wall: PhysicsWall):
+        self.__v = obj_velocity + rel_tangent_velocity + rel_normal_velocity
+        if isinstance(obj, PhysicsWall):
+            self.remove_wall_stuck(obj)
+    
+    def remove_wall_stuck(self, wall: PhysicsWall) -> None:
         '''
-        To be documented
+        Try to remove the situation where the ball is stuck in the wall. Precisely, if the ball 
+        is on-ground, the ball is directly moved out of the wall. Otherwise, a force outward 
+        the wall is applied on the ball.
 
         Parameters
         ----------
@@ -482,15 +466,16 @@ class PhysicsBall:
         if self.__onground:
             if wall.facing == PhysicsWall.FACING_RIGHT:
                 self.__pos.x = wall.x_side + self.__radius
-            else:
+            elif wall.facing == PhysicsWall.FACING_LEFT:
                 self.__pos.x = wall.x_side - self.__radius
             return
+        
         if wall.facing == PhysicsWall.FACING_RIGHT:
             self.__v.x = max(
                 self.__v.x,
                 wall_reflect_velocity(wall.x_side - self.__pos.x + self.__radius)
             )
-        else:
+        elif wall.facing == PhysicsWall.FACING_LEFT:
             self.__v.x = min(
                 self.__v.x,
                 -wall_reflect_velocity(wall.x_side - self.__pos.x - self.__radius)
@@ -498,34 +483,37 @@ class PhysicsBall:
 
     def handle_friction(
             self, 
-            surface_velocity: Vector = None, 
-            surface_normal: Vector = None, 
+            obj_velocity: Vector = None, 
+            normal_vector: Vector = None, 
             *, 
             times: int = 1
         ) -> None:
         '''
         Apply the simulated friction within a tick to the ball. If the ball is on the ground, 
-        the surface parameters need not be passed.
-    
-        surface_velocity: :class:`Vector`
-            The velocity of the surface.
-        surface_normal: :class:`Vector`
-            The normal vector of the surface at the contact point. Should be pointing outward.
-        times: :class:`int`
-            The times of sliding friction applied.
+        the object parameters need not be passed and will be overridden.
+        
+        Parameters
+        ----------
+        obj_velocity: Optional[:class:`Vector`]
+            The velocity of the object. Default to the ground of the ball.
+        normal_vector: Optional[:class:`Vector`]
+            The normal vector of the object at the contact point. Default to the normal vector 
+            of the ground.
+        times: Optional[:class:`int`]
+            The times of sliding friction applied. Default to 1.
         '''
         if self.__onground:
-            surface_velocity = self.__ground.velocity
-            surface_normal = self.__ground.get_normal_vector(self)
+            obj_velocity = self.__ground.velocity
+            normal_vector = self.__ground.get_normal_vector(self)
         
-        surface_tangent = Vector(-surface_normal[1], surface_normal[0]).unit
-        surface_projected_velocity = surface_velocity.project_on(surface_tangent)
-        projected_velocity = self.__v.project_on(surface_tangent)
+        obj_tangent = Vector(-normal_vector[1], normal_vector[0]).unit
+        obj_projected_velocity = obj_velocity.project_on(obj_tangent)
+        projected_velocity = self.__v.project_on(obj_tangent)
         normal_velocity = self.__v - projected_velocity
 
         # Change to relative inertial frame of reference
-        rel_linear_velocity = surface_projected_velocity - projected_velocity
-        rel_rolling_velocity = surface_tangent * self.__w * self.__radius
+        rel_linear_velocity = obj_projected_velocity - projected_velocity
+        rel_rolling_velocity = obj_tangent * self.__w * self.__radius
         rel_average_velocity = (rel_linear_velocity + rel_rolling_velocity) / 2
 
         # Sliding friction
@@ -546,55 +534,70 @@ class PhysicsBall:
         )
 
         # Change back to the normal frame of reference
-        self.__v = surface_projected_velocity - rel_linear_velocity + normal_velocity
-        self.__w = rel_rolling_velocity.magnitude * sign(rel_rolling_velocity * surface_tangent) \
+        self.__v = obj_projected_velocity - rel_linear_velocity + normal_velocity
+        self.__w = rel_rolling_velocity.magnitude * sign(rel_rolling_velocity * obj_tangent) \
             / self.radius
         
     def set_onground(
             self, 
             onground: bool, 
             /, *, 
-            ground: PhysicsObject = None, 
-            ground_y: NumberType = None
+            ground: PhysicsGround | PhysicsSlab = None
         ) -> None:
         '''
-        To be documented
+        Set the ground attributes.
+
+        Parameters
+        ----------
+        (positional)onground: `bool`
+            Whether the ball is now on-ground.
+        ground: Optional[Union[:class:`PhysicsGround`, :class:`PhysicsSlab`]]
+            The ground which the ball is on. Required when ``onground`` is ``True``.
         '''
         self.__onground = onground
         self.__ground = ground
         if onground:
+            self.__pos.y = ground.y_top - self.__radius
             self.set_bounceability(True)
-        if ground_y is not None:
-            self.__pos.y = ground_y - self.__radius
-
         
     def set_bounceability(self, bounceable: bool, /) -> None:
         '''
-        To be documented
+        Set the bounceability attributes.
+
+        Parameters
+        ----------
+        (positional)bounceable: `bool`
+            Whether the ball is now bounceable.
         '''
         self.__bounceable = bounceable
         if bounceable:
             self.__path_length = 0
 
-    def check_onground(self) -> None:
+    def update_onground(self) -> None:
         '''
-        To be documented
+        Update whether the ball is still on-ground.
         '''
         if not self.__onground:
             return
-        if not self.__ground.check_onground(self):
+        if not self.__ground.update_onground(self):
             self.set_onground(False)
         
-    def check_bounceability(self, traveled_distance: LengthType) -> None:
+    def update_bounceability(self, traveled_distance: LengthType) -> None:
         '''
-        To be documented
+        Update whether the ball is still bounceable after traveled for a given distance.
+
+        Parameters
+        ----------
+        traveled_distance: `LengthType`
+            The traveled distance of the ball after the previous tick.
         '''
         if self.__onground or not self.__bounceable:
             return
         self.__path_length += traveled_distance
         if self.__path_length > _MAX_BOUNCABLE_DISTANCE:
             self.set_bounceability(False)
-        
+    
+    # temporary methods
     def temp(self, surface: PhysicsGround):
         self.__onground = True
         self.__ground = surface
