@@ -1,11 +1,12 @@
 import pygame
+from modules.vector import Vector
 
 FPS = 60
 dt = 1 / FPS
 g = -9.8 * 6
 
 pygame.init()
-pygame.display.set_mode((1120, 630))
+#pygame.display.set_mode((1120, 630))
 screen = pygame.display.set_mode(size = (1120, 630), flags = pygame.RESIZABLE)
 class Ball:
     def __init__(self, pos, size):
