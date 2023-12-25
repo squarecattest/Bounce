@@ -575,7 +575,7 @@ class PhysicsBall(PhysicsObject):
 
     def update_onground(self) -> None:
         '''
-        Update whether the ball is still on-ground.
+        Update the on-ground attributes of the ball.
         '''
         if not self.__onground:
             return
@@ -584,7 +584,7 @@ class PhysicsBall(PhysicsObject):
         
     def update_bounceability(self, traveled_distance: LengthType) -> None:
         '''
-        Update whether the ball is still bounceable after traveled for a given distance.
+        Update the bounceability of the ball after traveled for a given distance.
 
         Parameters
         ----------
