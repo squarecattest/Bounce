@@ -177,6 +177,9 @@ class Vector:
         return Vector(self)
 
     def project_on(self, __v: "Vector") -> "Vector":
+        '''
+        Return the projected vector from itself onto `__v`.
+        '''
         if __v.is_zerovec:
             raise ValueError("Cannot project a vector onto a zero vector")
         return __v * ((self * __v) / __v.squared_magnitude)
@@ -245,6 +248,38 @@ class Vector:
         Return a zero vector.
         '''
         return cls(0, 0)
+    
+    @classmethod
+    @property
+    def unit_upward(cls) -> "Vector":
+        '''
+        Return a unit vector pointing upward.
+        '''
+        return cls(0, -1)
+    
+    @classmethod
+    @property
+    def unit_downward(cls) -> "Vector":
+        '''
+        Return a unit vector pointing upward.
+        '''
+        return cls(0, 1)
+    
+    @classmethod
+    @property
+    def unit_rightward(cls) -> "Vector":
+        '''
+        Return a unit vector pointing rightward.
+        '''
+        return cls(1, 0)
+    
+    @classmethod
+    @property
+    def unit_leftward(cls) -> "Vector":
+        '''
+        Return a unit vector pointing rightward.
+        '''
+        return cls(-1, 0)
 
 
 class IntVector(Vector):
