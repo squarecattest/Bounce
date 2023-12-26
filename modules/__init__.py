@@ -1,2 +1,2 @@
-import sys
-sys.path.append(".\\modules")
+from sys import path
+path.append(".\\modules")

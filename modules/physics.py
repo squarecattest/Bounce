@@ -11,14 +11,14 @@ _GRAVITY = Vector(0, 1960)
 _BOUNCE_VELOCITY = -720
 _COLLISION_SCALE, _COLLISION_OFFSET = 0.6, 20
 _SLIDING_F_SCALE, _SLIDING_F_OFFSET = 0.92, 0.01
-_ROLLING_R_SCALE, _ROLLING_R_OFFSET = 0.99, 0.1
+_ROLLING_R_SCALE, _ROLLING_R_OFFSET = 0.993, 0.1 ## make resistence smaller
 _WALL_REFLECT_VELOCITY_CONSTANT = 2
 _WALL_REFLECT_ALLOWED_DISTANCE = 0 #1 ?
 _MAX_BOUNCABLE_DISTANCE = 20
 _HANDLING_TIMES_ONCOLLISION = 3
 
 
-def sign(number: NumberType) -> _Literal[-1, 0, 1]:
+def _sign(number: NumberType) -> _Literal[-1, 0, 1]:
     '''
     Mathematical sign function.
     '''
@@ -26,13 +26,13 @@ def sign(number: NumberType) -> _Literal[-1, 0, 1]:
     if number < 0: return -1
     return 0
 
-def to_degree(radian: float) -> float:
+def _to_degree(radian: float) -> float:
     '''
     Convert an angle from radian to degree.
     '''
     return radian * _RAD_INV
 
-def linear_contraction(original: Vector, center: Vector, scale: float, offset: float) -> Vector:
+def _linear_contraction(original: Vector, center: Vector, scale: float, offset: float) -> Vector:
     '''
     Map the distance between original and center by:
 
@@ -58,7 +58,7 @@ def linear_contraction(original: Vector, center: Vector, scale: float, offset: f
         return center.copy()
     return center + unit * (mag - offset)
 
-def wall_reflect_velocity(distance: NumberType) -> NumberType:
+def _wall_reflect_velocity(distance: NumberType) -> NumberType:
     '''
     Get the reflection velocity for a ball stuck in a wall. The formula is given by:
 
@@ -442,7 +442,7 @@ class PhysicsBall(PhysicsObject):
         if isinstance(obj, PhysicsBall):
             raise NotImplementedError
         if rel_normal_velocity * normal_vector <= 0:
-            rel_normal_velocity = linear_contraction(
+            rel_normal_velocity = _linear_contraction(
                 -rel_normal_velocity, Vector.zero, _COLLISION_SCALE, _COLLISION_OFFSET
             )
             
@@ -478,12 +478,12 @@ class PhysicsBall(PhysicsObject):
         if wall.facing == PhysicsWall.FACING_RIGHT:
             self.__v.x = max(
                 self.__v.x,
-                wall_reflect_velocity(wall.x_side - self.__pos.x + self.__radius)
+                _wall_reflect_velocity(wall.x_side - self.__pos.x + self.__radius)
             )
         elif wall.facing == PhysicsWall.FACING_LEFT:
             self.__v.x = min(
                 self.__v.x,
-                -wall_reflect_velocity(wall.x_side - self.__pos.x - self.__radius)
+                -_wall_reflect_velocity(wall.x_side - self.__pos.x - self.__radius)
             )
 
     def remove_ground_stuck(self, ground: PhysicsGround) -> None:
@@ -536,24 +536,24 @@ class PhysicsBall(PhysicsObject):
 
         # Sliding friction
         for _ in range(times):
-            rel_linear_velocity = linear_contraction(
+            rel_linear_velocity = _linear_contraction(
                 rel_linear_velocity, rel_average_velocity, _SLIDING_F_SCALE, _SLIDING_F_OFFSET
             )
-            rel_rolling_velocity = linear_contraction(
+            rel_rolling_velocity = _linear_contraction(
                 rel_rolling_velocity, rel_average_velocity, _SLIDING_F_SCALE, _SLIDING_F_OFFSET
             )
         
         # Rolling friction / Rolling resistence
-        rel_linear_velocity = linear_contraction(
+        rel_linear_velocity = _linear_contraction(
             rel_linear_velocity, Vector.zero, _ROLLING_R_SCALE, _ROLLING_R_OFFSET
         )
-        rel_rolling_velocity = linear_contraction(
+        rel_rolling_velocity = _linear_contraction(
             rel_rolling_velocity, Vector.zero, _ROLLING_R_SCALE, _ROLLING_R_OFFSET
         )
 
         # Change back to the normal frame of reference
         self.__v = obj_projected_velocity - rel_linear_velocity + normal_velocity
-        self.__w = rel_rolling_velocity.magnitude * sign(rel_rolling_velocity * obj_tangent) \
+        self.__w = rel_rolling_velocity.magnitude * _sign(rel_rolling_velocity * obj_tangent) \
             / self.radius
     
     def check_collision(self, ball: "PhysicsBall") -> Vector | None:
@@ -676,7 +676,7 @@ class PhysicsBall(PhysicsObject):
         '''
         (Read-only) The rotated angle of the ball, in unit of degree.
         '''
-        return to_degree(self.__angle)
+        return _to_degree(self.__angle)
     
     @property
     def radius(self):

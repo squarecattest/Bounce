@@ -1,7 +1,6 @@
 #from modules.vector import Vector
 import pygame
 from modules.physics import *
-from typing import a
 
 from math import pi
 from time import sleep
@@ -16,7 +15,7 @@ slabs1: list[PhysicsSlab] = []
 slabs2: list[PhysicsSlab] = []
 slabs3: list[PhysicsSlab] = []
 for i in range(6):
-    slabs1.append(PhysicsSlab((75 + 224 * i, 300), slab_size, -80))
+    slabs1.append(PhysicsSlab((75 + 224 * i, 300), slab_size, -120))
     slabs2.append(PhysicsSlab((75 + 224 * i, 200), slab_size, 50))
     slabs3.append(PhysicsSlab((75 + 224 * i, 100), slab_size, -50))
 slab_rect = pygame.Surface(slab_size)
@@ -38,7 +37,7 @@ while True:
     for slab in slabs1 + slabs2 + slabs3:
         slab.tick(1 / FPS)
     if (posx := slabs1[0].position.x) < -75:
-        slabs1.append(PhysicsSlab((posx + 1344, 300), slab_size, -80))
+        slabs1.append(PhysicsSlab((posx + 1344, 300), slab_size, -120))
         slabs1.pop(0)
     if (posx := slabs2[-1].position.x) > 1195:
         slabs2.insert(0, PhysicsSlab((posx - 1344, 200), slab_size, 50))
