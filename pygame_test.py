@@ -5,7 +5,7 @@ from modules.physics import *
 from math import pi
 from time import sleep
 
-r = 26
+r = 16
 y = 400
 ground = PhysicsGround(400)
 wall_left = PhysicsWall(0, PhysicsWall.FACING_RIGHT)
@@ -22,7 +22,7 @@ slab_rect = pygame.Surface(slab_size)
 slab_rect.fill((128, 64, 64))
 ball = PhysicsBall((560, 400 - r), r)
 #ball.temp(ground)
-FPS=180;pygame.init();screen = pygame.display.set_mode(size = (1120, 630));picture = pygame.image.load(".\\test_circle.png").convert_alpha();picture_blue=pygame.image.load(".\\test_circle_blue.png").convert_alpha()
+FPS=180;pygame.init();screen = pygame.display.set_mode(size = (1120, 630));picture = pygame.image.load(".\\ball.png").convert_alpha();picture_blue=pygame.image.load(".\\ball.png").convert_alpha()
 while True:
     pygame.time.Clock().tick(FPS)
     events = pygame.event.get()
