@@ -162,6 +162,15 @@ class Vector:
 
     def __len__(self) -> int:
         return 2
+    
+    def __str__(self) -> str:
+        return f"({self.__x}, {self.__y})"
+    
+    def __repr__(self) -> str:
+        return f"Vector({self.__x}, {self.__y})"
+    
+    def __format__(self, __format_spec: str) -> str:
+        return f"({format(self.__x, __format_spec)}, {format(self.__y, __format_spec)})"
 
     def copy(self) -> "Vector":
         '''
@@ -386,6 +395,13 @@ class IntVector(Vector):
         self.__x = int(self.__x * __c)
         self.__y = int(self.__y * __c)
         return self
+    
+    def __floordiv__(self, __c: int) -> "IntVector":
+        if not isinstance(__c, int):
+            return NotImplemented
+        if __c == 0:
+            raise ZeroDivisionError
+        return IntVector(self.__x // __c, self.__y // __c)
 
     def __getitem__(self, __i: int) -> int:
         if not isinstance(__i, int):

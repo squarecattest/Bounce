@@ -8,7 +8,7 @@ _RAD_INV = 180 / _pi
 
 # Constant Settings
 _GRAVITY = Vector(0, 1960)
-_BOUNCE_VELOCITY = -960
+_BOUNCE_VELOCITY = -720
 _COLLISION_SCALE, _COLLISION_OFFSET = 0.6, 20
 _SLIDING_F_SCALE, _SLIDING_F_OFFSET = 0.92, 0.01
 _ROLLING_R_SCALE, _ROLLING_R_OFFSET = 0.99, 0.1
@@ -153,7 +153,7 @@ class PhysicsGround(PhysicsObject):
         return None
 
     def ckeck_onground(self, ball: "PhysicsBall") -> bool:
-        return True
+        return ball.velocity.y == 0
     
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
         return Vector.unit_upward
@@ -304,9 +304,9 @@ class PhysicsSlab(PhysicsObject):
         return Vector(0, -1)
 
     @property
-    def position(self) -> Vector: 
+    def position(self) -> Vector:
         '''
-        (Read-only) The position vector of the slab.
+        (Read-only) The position vector of the center of the slab.
         '''
         return self.__pos.copy()
 
@@ -423,7 +423,8 @@ class PhysicsBall(PhysicsObject):
     def collide(self, obj: PhysicsObject, obj_velocity: Vector, normal_vector: Vector) -> None:
         '''
         Apply the given collision to the ball. If the collision occurs inside a wall, 
-        :meth:`wall_stuck_removal` will be called.
+        :meth:`wall_stuck_removal` will be called. If after the collision is applied and the
+        ball is still moving into the ground, :meth:`ground_stuck_removal` will be called.
         
         Parameters
         ----------
@@ -452,6 +453,9 @@ class PhysicsBall(PhysicsObject):
             self.__v = obj_velocity + rel_tangent_velocity + rel_normal_velocity
         if isinstance(obj, PhysicsWall):
             self.remove_wall_stuck(obj)
+        elif isinstance(obj, PhysicsGround) and self.__v * Vector.unit_downward > 0:
+            self.remove_ground_stuck(obj)
+
     
     def remove_wall_stuck(self, wall: PhysicsWall) -> None:
         '''
@@ -481,6 +485,19 @@ class PhysicsBall(PhysicsObject):
                 self.__v.x,
                 -wall_reflect_velocity(wall.x_side - self.__pos.x - self.__radius)
             )
+
+    def remove_ground_stuck(self, ground: PhysicsGround) -> None:
+        '''
+        Try to remove the situation where the ball is stuck in the ground. Precisely, the ball 
+        is directly moved to the surface and the vertical velocity is set to zero.
+
+        Parameters
+        ----------
+        ground: :class:`PhysicsGround`
+            The ground which the ball get stuck in.
+        '''
+        self.__pos.y = ground.y_top - self.__radius
+        self.__v.y = 0
 
     def handle_friction(
             self, 
@@ -620,16 +637,57 @@ class PhysicsBall(PhysicsObject):
         return self.__bounceable
 
     @property
-    def position(self): return self.__pos.copy()
+    def position(self) -> Vector:
+        '''
+        (Read-only) The position vector of the center of the ball.
+        '''
+        return self.__pos.copy()
+    
     @property
-    def position_int(self): return IntVector(self.__pos)
+    def pos_x(self):
+        '''
+        (Read-only) The x coordinate of the center of the ball.
+        '''
+        return self.__pos.x
+    
     @property
-    def pos_x(self): return self.__pos.x
+    def pos_y(self):
+        '''
+        (Read-only) The y coordinate of the center of the ball.
+        '''
+        return self.__pos.y
+    
     @property
-    def pos_y(self): return self.__pos.y
+    def velocity(self):
+        '''
+        (Read-only) The velocity of the ball.
+        '''
+        return self.__v.copy()
+    
     @property
-    def velocity(self): return self.__v.copy()
+    def rad_angle(self):
+        '''
+        (Read-only) The rotated angle of the ball, in unit of radian.
+        '''
+        return self.__angle
+    
     @property
-    def angle(self): return self.__angle
+    def deg_angle(self):
+        '''
+        (Read-only) The rotated angle of the ball, in unit of degree.
+        '''
+        return to_degree(self.__angle)
+    
     @property
-    def radius(self): return self.__radius
+    def radius(self):
+        '''
+        (Read-only) The radius of the ball.
+        '''
+        return self.__radius
+    
+    @property
+    def bounceable(self):
+        '''
+        (Read-only) The bounceability of the ball.
+        '''
+        return self.__bounceable
