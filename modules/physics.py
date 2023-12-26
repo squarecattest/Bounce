@@ -96,7 +96,7 @@ class PhysicsObject(_ABC):
         pass
     
     @_abstractmethod
-    def update_onground(self, ball: "PhysicsBall") -> bool:
+    def ckeck_onground(self, ball: "PhysicsBall") -> bool:
         '''
         Check if the on-ground ball is still on this object. Notice that a bounce will 
         automatically remove the on-ground property, so this method only need to check about 
@@ -152,7 +152,7 @@ class PhysicsGround(PhysicsObject):
             return Vector.unit_upward
         return None
 
-    def update_onground(self, ball: "PhysicsBall") -> bool:
+    def ckeck_onground(self, ball: "PhysicsBall") -> bool:
         return True
     
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
@@ -209,6 +209,9 @@ class PhysicsWall(PhysicsObject):
             and ball.pos_x + ball.radius >= self.__x_side:
             return Vector.unit_leftward
         return None
+    
+    def ckeck_onground(self, ball: "PhysicsBall") -> bool:
+        return False
     
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
         if self.__facing == PhysicsWall.FACING_RIGHT:
@@ -293,7 +296,7 @@ class PhysicsSlab(PhysicsObject):
         # Not colliding
         return None
     
-    def update_onground(self, ball: "PhysicsBall") -> bool:
+    def ckeck_onground(self, ball: "PhysicsBall") -> bool:
         return self.__pos.x - self.__size[0] // 2 <= ball.pos_x \
             <= self.__pos.x + self.__size[0] // 2
     
@@ -437,18 +440,16 @@ class PhysicsBall(PhysicsObject):
         
         if isinstance(obj, PhysicsBall):
             raise NotImplementedError
-        if rel_normal_velocity * normal_vector > 0:
-            return
-        
-        rel_normal_velocity = linear_contraction(
-            -rel_normal_velocity, Vector.zero, _COLLISION_SCALE, _COLLISION_OFFSET
-        )
-        
-        if rel_normal_velocity.is_zerovec and normal_vector == Vector.unit_upward:
-            self.set_onground(True, ground=obj)
-        elif normal_vector * Vector.unit_upward > 0:
-            self.set_bounceability(True)
-        self.__v = obj_velocity + rel_tangent_velocity + rel_normal_velocity
+        if rel_normal_velocity * normal_vector <= 0:
+            rel_normal_velocity = linear_contraction(
+                -rel_normal_velocity, Vector.zero, _COLLISION_SCALE, _COLLISION_OFFSET
+            )
+            
+            if rel_normal_velocity.is_zerovec and normal_vector == Vector.unit_upward:
+                self.set_onground(True, ground=obj)
+            elif normal_vector * Vector.unit_upward > 0:
+                self.set_bounceability(True)
+            self.__v = obj_velocity + rel_tangent_velocity + rel_normal_velocity
         if isinstance(obj, PhysicsWall):
             self.remove_wall_stuck(obj)
     
@@ -537,6 +538,17 @@ class PhysicsBall(PhysicsObject):
         self.__v = obj_projected_velocity - rel_linear_velocity + normal_velocity
         self.__w = rel_rolling_velocity.magnitude * sign(rel_rolling_velocity * obj_tangent) \
             / self.radius
+    
+    def check_collision(self, ball: "PhysicsBall") -> Vector | None:
+        if (vec := self.__pos - ball.__pos).magnitude <= self.__radius + ball.__radius:
+            return vec
+        return None
+        
+    def ckeck_onground(self, ball: "PhysicsBall") -> bool:
+        return False
+    
+    def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
+        return self.__pos - ball.__pos
         
     def set_onground(
             self, 
@@ -579,7 +591,7 @@ class PhysicsBall(PhysicsObject):
         '''
         if not self.__onground:
             return
-        if not self.__ground.update_onground(self):
+        if not self.__ground.ckeck_onground(self):
             self.set_onground(False)
         
     def update_bounceability(self, traveled_distance: LengthType) -> None:
@@ -615,6 +627,8 @@ class PhysicsBall(PhysicsObject):
     def pos_x(self): return self.__pos.x
     @property
     def pos_y(self): return self.__pos.y
+    @property
+    def velocity(self): return self.__v.copy()
     @property
     def angle(self): return self.__angle
     @property

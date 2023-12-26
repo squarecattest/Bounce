@@ -1,48 +1,37 @@
 from collections.abc import Iterable as _Iterable, Generator as _Generator
 from typing import overload as _overload, Self as _Self, Any as _Any
-from math import sqrt as _sqrt, isfinite as _isfinite
+from math import isfinite as _isfinite
 
 type NumberType = int | float
 type LengthType = int | float
-type VectorType = Vector | _Iterable[NumberType, NumberType]
-type SizeType = IntVector | _Iterable[int, int]
+type VectorType = Vector | _Iterable[NumberType]
+type SizeType = IntVector | _Iterable[int]
 
-def isNumber(arg) -> bool:
+def _isNumber(arg) -> bool:
     '''
     Check if an argument is a real number.
     '''
     return isinstance(arg, (int, float)) and _isfinite(arg)
 
-def isPosNumber(arg) -> bool:
+def _toVectorArg(arg) -> tuple[NumberType, NumberType] | None:
     '''
-    Check if an argument is a positive number.
+    To be documented
     '''
-    return isinstance(arg, (int, float)) and _isfinite(arg) and arg >= 0
-
-def isVector(arg) -> bool:
-    '''
-    Check if an argument is an iterable of two numbers.
-    '''
-    return isinstance(arg, Vector) or (
-        isinstance(arg, _Iterable) and getattr(arg, "__len__", False) and len(arg) == 2 \
-        and all(isNumber(x) for x in arg)
-    )
-
-def isIntVector(arg) -> bool:
-    '''
-    Check if an argument is an iterable of two integer number.
-    '''
-    return isinstance(arg, IntVector) or (
-        isinstance(arg, _Iterable) and getattr(arg, "__len__", False) and len(arg) == 2 \
-        and all(isinstance(x, int) for x in arg)
-    )
-
-def isPosIntVector(arg) -> bool:
-    '''
-    Check if an argument is an iterable of two positive integer number.
-    '''
-    return isinstance(arg, _Iterable) and getattr(arg, "__len__", False) and len(arg) == 2 \
-        and all(isinstance(x, int) and x > 0 for x in arg)
+    try:
+        it = iter(arg)
+        x = next(it)
+        y = next(it)
+    except:
+        return None
+    if not _isNumber(x) or not _isNumber(y):
+        return None
+    try:
+        next(it)
+    except StopIteration:
+        return x, y
+    except:
+        pass
+    return None
 
 
 class Vector:
@@ -54,19 +43,23 @@ class Vector:
     @_overload
     def __init__(self, __x: NumberType, __y: NumberType, /) -> None: ...
     @_overload
-    def __init__(self, __v: _Iterable[NumberType, NumberType]) -> None: ...
+    def __init__(self, __v: _Iterable[NumberType]) -> None: ...
 
     def __init__(self, *args) -> None:
         length = len(args)
-        if length == 1 and isVector(args[0]):
-            self.__x, self.__y = args[0]
-        elif length == 2 and isNumber(args[0]) and isNumber(args[1]):
+        if length == 2 and _isNumber(args[0]) and _isNumber(args[1]):
             self.__x, self.__y = args[0], args[1]
-        else:
-            raise TypeError("Invalid initialization argument")
-        
+            return
+        if length == 1 and (arg := _toVectorArg(args[0])) is not None:
+            self.__x, self.__y = arg
+            return
+        raise TypeError("Invalid initialization argument")
+    
     def __eq__(self, __v: VectorType) -> bool:
-        if not isVector(__v):
+        if isinstance(__v, Vector):
+            return self.__x == __v.__x and self.__y == __v.__y
+        __v = _toVectorArg(__v)
+        if __v is None:
             return NotImplemented
         return self.__x == __v[0] and self.__y == __v[1]
         
@@ -74,24 +67,24 @@ class Vector:
         return Vector(-self.__x, -self.__y)
 
     def __add__(self, __v: "Vector") -> "Vector":
-        if not isVector(__v):
+        if not isinstance(__v, Vector):
             return NotImplemented
         return Vector(self.__x + __v.__x, self.__y + __v.__y)
     
     def __iadd__(self, __v: "Vector") -> _Self:
-        if not isVector(__v):
+        if not isinstance(__v, Vector):
             return NotImplemented
         self.__x += __v.__x
         self.__y += __v.__y
         return self
 
     def __sub__(self, __v: "Vector") -> "Vector":
-        if not isVector(__v):
+        if not issubclass(type(__v), Vector):
             return NotImplemented
         return Vector(self.__x - __v.__x, self.__y - __v.__y)
     
     def __isub__(self, __v: "Vector") -> _Self:
-        if not isVector(__v):
+        if not isinstance(__v, Vector):
             return NotImplemented
         self.__x -= __v.__x
         self.__y -= __v.__y
@@ -102,39 +95,39 @@ class Vector:
     @_overload
     def __mul__(self, __v: "Vector") -> NumberType: ...
 
-    def __mul__(self, arg) -> "Vector | NumberType":
+    def __mul__(self, arg: "NumberType | Vector") -> "Vector | NumberType":
         '''
-        Operate scalar multiplication if the argument is a `NumberType`.
+        Operate the scalar multiplication if the argument is a `NumberType`.
 
-        Operate inner product if the argument is a `Vector`.
+        Operate the inner product if the argument is a `Vector`.
         '''
-        if isNumber(arg):
+        if _isNumber(arg):
             return Vector(arg * self.__x, arg * self.__y)
-        if isVector(arg):
-            return self.__x * arg[0] + self.__y * arg[1]
+        if isinstance(arg, Vector):
+            return self.__x * arg.__x + self.__y * arg.__y
         return NotImplemented
         
     def __rmul__(self, __c: NumberType) -> "Vector":
-        if not isNumber(__c):
+        if not _isNumber(__c):
             return NotImplemented
         return Vector(__c * self.__x, __c * self.__y)
     
     def __imul__(self, __c: NumberType) -> _Self:
-        if not isNumber(__c):
+        if not _isNumber(__c):
             return NotImplemented
         self.__x *= __c
         self.__y *= __c
         return self
     
     def __truediv__(self, __c: NumberType) -> "Vector":
-        if not isNumber(__c):
+        if not _isNumber(__c):
             return NotImplemented
         if __c == 0:
             raise ZeroDivisionError
         return Vector(self.__x / __c, self.__y / __c)
     
     def __itruediv__(self, __c: NumberType) -> _Self:
-        if not isNumber(__c):
+        if not _isNumber(__c):
             return NotImplemented
         if __c == 0:
             raise ZeroDivisionError
@@ -154,7 +147,7 @@ class Vector:
     def __setitem__(self, __i: int, __value: NumberType) -> None:
         if not isinstance(__i, int):
             raise TypeError("Invalid index")
-        if not isNumber(__value):
+        if not _isNumber(__value):
             raise TypeError("Invalid value")
         if __i == 0:
             self.__x = __value
@@ -174,7 +167,7 @@ class Vector:
         '''
         Return a copied vector.
         '''
-        return Vector(self)
+        return Vector(self.__x, self.__y)
 
     def project_on(self, __v: "Vector") -> "Vector":
         '''
@@ -183,6 +176,14 @@ class Vector:
         if __v.is_zerovec:
             raise ValueError("Cannot project a vector onto a zero vector")
         return __v * ((self * __v) / __v.squared_magnitude)
+    
+    def dot(self, __v: "Vector") -> NumberType:
+        '''
+        Return the inner product of itself and the vector.
+        '''
+        if not isinstance(__v, Vector):
+            raise TypeError("Invalid argument")
+        return self.__x * __v.__x + self.__y * __v.__y
 
     @property
     def x(self) -> NumberType:
@@ -194,20 +195,20 @@ class Vector:
     
     @x.setter
     def x(self, __x: NumberType) -> None:
-        if not isNumber(__x):
+        if not _isNumber(__x):
             raise TypeError("Invalid setter argument")
         self.__x = __x
 
     @y.setter
     def y(self, __y: NumberType) -> None:
-        if not isNumber(__y):
+        if not _isNumber(__y):
             raise TypeError("Invalid setter argument")
         self.__y = __y
 
     @property
     def is_zerovec(self) -> bool:
         '''
-        Return if self is a zero vector.
+        Whether itself is a zero vector.
         '''
         return self.__x == 0 and self.__y == 0
 
@@ -216,7 +217,7 @@ class Vector:
         '''
         The length / magnitude / norm of itself.
         '''
-        return _sqrt(self.__x ** 2 + self.__y ** 2)
+        return (self.__x ** 2 + self.__y ** 2) ** (1/2)
     
     @property
     def squared_magnitude(self) -> NumberType:
@@ -231,7 +232,7 @@ class Vector:
         The unit vector of itself.
         '''
         if (magnitude := self.magnitude) == 0:
-            raise ZeroDivisionError("Null vector has no unit vector")
+            raise ZeroDivisionError("Zero vector has no unit vector")
         return self / magnitude
     
     @property
@@ -267,19 +268,19 @@ class Vector:
     
     @classmethod
     @property
-    def unit_rightward(cls) -> "Vector":
-        '''
-        Return a unit vector pointing rightward.
-        '''
-        return cls(1, 0)
-    
-    @classmethod
-    @property
     def unit_leftward(cls) -> "Vector":
         '''
         Return a unit vector pointing rightward.
         '''
         return cls(-1, 0)
+    
+    @classmethod
+    @property
+    def unit_rightward(cls) -> "Vector":
+        '''
+        Return a unit vector pointing rightward.
+        '''
+        return cls(1, 0)
 
 
 class IntVector(Vector):
@@ -295,12 +296,13 @@ class IntVector(Vector):
 
     def __init__(self, *args) -> None:
         length = len(args)
-        if length == 1 and isVector(args[0]):
-            self.__x, self.__y = map(int, args[0])
-        elif length == 2 and isNumber(args[0]) and isNumber(args[1]):
+        if length == 2 and _isNumber(args[0]) and _isNumber(args[1]):
             self.__x, self.__y = int(args[0]), int(args[1])
-        else:
-            raise TypeError("Invalid initialization argument")
+            return
+        if length == 1 and (arg := _toVectorArg(args[0])) is not None:
+            self.__x, self.__y = int(arg[0]), int(arg[1])
+            return
+        raise TypeError("Invalid initialization argument")
         
     def __neg__(self) -> "IntVector":
         return IntVector(-self.__x, -self.__y)
@@ -311,17 +313,17 @@ class IntVector(Vector):
     def __add__(self, __v: Vector) -> Vector: ...
 
     def __add__(self, __v: "IntVector | Vector") -> "IntVector | Vector":
-        if isIntVector(__v):
+        if isinstance(__v, IntVector):
             return IntVector(self.__x + __v.__x, self.__y + __v.__y)
-        if isVector(__v):
-            return Vector(self.__x + __v.__x, self.__y + __v.__y)
+        if isinstance(__v, Vector):
+            return Vector(self.__x + __v.x, self.__y + __v.y)
         return NotImplemented
     
     def __iadd__(self, __v: "Vector") -> _Self:
-        if not isVector(__v):
+        if not isinstance(__v, Vector):
             return NotImplemented
-        self.__x += int(__v.__x)
-        self.__y += int(__v.__y)
+        self.__x += int(__v.x)
+        self.__y += int(__v.y)
         return self
     
     @_overload
@@ -330,17 +332,17 @@ class IntVector(Vector):
     def __sub__(self, __v: Vector) -> Vector: ...
 
     def __sub__(self, __v: "IntVector | Vector") -> "IntVector | Vector":
-        if isIntVector(__v):
+        if isinstance(__v, IntVector):
             return IntVector(self.__x - __v.__x, self.__y - __v.__y)
-        if isVector(__v):
-            return Vector(self.__x - __v.__x, self.__y - __v.__y)
+        if isinstance(__v, Vector):
+            return Vector(self.__x - __v.x, self.__y - __v.y)
         return NotImplemented
     
     def __isub__(self, __v: "Vector") -> _Self:
-        if not isVector(__v):
+        if not isinstance(__v, Vector):
             return NotImplemented
-        self.__x += int(-__v.__x)
-        self.__y += int(-__v.__y)
+        self.__x -= int(__v.x)
+        self.__y -= int(__v.y)
         return self
 
     @_overload
@@ -354,16 +356,16 @@ class IntVector(Vector):
 
     def __mul__(self, arg) -> "IntVector | Vector | int | NumberType":
         '''
-        Operate scalar multiplication if the argument is a `NumberType`.
+        Operate the scalar multiplication if the argument is a `NumberType`.
 
-        Operate inner product if the argument is a `Vector`.
+        Operate the inner product if the argument is a `Vector`.
         '''
         if isinstance(arg, int):
             return IntVector(arg * self.__x, arg * self.__y)
-        if isNumber(arg):
+        if _isNumber(arg):
             return Vector(arg * self.__x, arg * self.__y)
-        if isVector(arg):
-            return self.__x * arg[0] + self.__y * arg[1]
+        if isinstance(arg, Vector):
+            return self.__x * arg.x + self.__y * arg.y
         return NotImplemented
         
     @_overload
@@ -374,12 +376,12 @@ class IntVector(Vector):
     def __rmul__(self, __c: int | NumberType) -> "IntVector | Vector":
         if isinstance(__c, int):
             return IntVector(__c * self.__x, __c * self.__y)
-        if isNumber(__c):
+        if _isNumber(__c):
             return Vector(__c * self.__x, __c * self.__y)
         return NotImplemented
     
     def __imul__(self, __c: NumberType) -> _Self:
-        if not isNumber(__c):
+        if not _isNumber(__c):
             return NotImplemented
         self.__x = int(self.__x * __c)
         self.__y = int(self.__y * __c)
@@ -397,7 +399,7 @@ class IntVector(Vector):
     def __setitem__(self, __i: int, __value: NumberType) -> None:
         if not isinstance(__i, int):
             raise TypeError("Invalid index")
-        if not isNumber(__value):
+        if not _isNumber(__value):
             raise TypeError("Invalid value")
         if __i == 0:
             self.__x = int(__value)
@@ -414,7 +416,7 @@ class IntVector(Vector):
         '''
         Return a copied vector.
         '''
-        return IntVector(self)
+        return IntVector(self.__x, self.__y)
 
     @property
     def x(self) -> int:
@@ -426,13 +428,13 @@ class IntVector(Vector):
     
     @x.setter
     def x(self, __x: NumberType) -> None:
-        if not isNumber(__x):
+        if not _isNumber(__x):
             raise TypeError("Invalid setter argument")
         self.__x = int(__x)
 
     @y.setter
     def y(self, __y: NumberType) -> None:
-        if not isNumber(__y):
+        if not _isNumber(__y):
             raise TypeError("Invalid setter argument")
         self.__y = int(__y)
 
@@ -442,3 +444,43 @@ class IntVector(Vector):
         The squared length / magnitude / norm of itself.
         '''
         return self.__x ** 2 + self.__y ** 2
+    
+    @classmethod
+    @property
+    def zero(cls) -> "IntVector":
+        '''
+        Return a zero vector.
+        '''
+        return cls(0, 0)
+    
+    @classmethod
+    @property
+    def unit_upward(cls) -> "IntVector":
+        '''
+        Return a unit vector pointing upward.
+        '''
+        return cls(0, -1)
+    
+    @classmethod
+    @property
+    def unit_downward(cls) -> "IntVector":
+        '''
+        Return a unit vector pointing upward.
+        '''
+        return cls(0, 1)
+    
+    @classmethod
+    @property
+    def unit_leftward(cls) -> "IntVector":
+        '''
+        Return a unit vector pointing rightward.
+        '''
+        return cls(-1, 0)
+    
+    @classmethod
+    @property
+    def unit_rightward(cls) -> "Vector":
+        '''
+        Return a unit vector pointing rightward.
+        '''
+        return cls(1, 0)
