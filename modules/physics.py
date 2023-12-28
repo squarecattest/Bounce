@@ -490,7 +490,7 @@ class PhysicsBall(PhysicsObject):
                 dt, 
                 obj.velocity, 
                 collision_vector, 
-                times=_SLIDING_MULTIPLIER
+                multiplier=_SLIDING_MULTIPLIER
             )
         else:
             self.remove_wall_stuck(obj)
@@ -596,7 +596,7 @@ class PhysicsBall(PhysicsObject):
             obj_velocity: Vector, 
             normal_vector: Vector, 
             *, 
-            times: int = 1
+            multiplier: LengthType = 1
         ) -> None:
         '''
         Apply the simulated friction within a tick to the ball.
@@ -609,12 +609,10 @@ class PhysicsBall(PhysicsObject):
             The velocity of the object.
         normal_vector: :class:`Vector`
             The normal vector of the object at the contact point.
-        times: Optional[:class:`int`]
-            The times of sliding friction applied. Default to 1.
+        multiplier: Optional[:class:`LengthType`]
+            The multiplier of time length when applying sliding friction. Default to 1.
         '''
-        dt = 1/180#
         tangent_vector = Vector(-normal_vector.y, normal_vector.x).unit
-        #
         v_rel = obj_velocity - self.__v
         v_rel_para = v_rel.project_on(tangent_vector)
         v_rel_perp = v_rel - v_rel_para
@@ -624,7 +622,7 @@ class PhysicsBall(PhysicsObject):
         v_diff = (v_rot - v_rel_para) / 3
         v_weighted = (v_rot + 2 * v_rel_para) / 3
         v_diff = _time_based_linear_contraction(
-            v_diff, Vector.zero, times * dt, _SLIDING_F_GAMMA, _SLIDING_F_DELTA
+            v_diff, Vector.zero, multiplier * dt, _SLIDING_F_GAMMA, _SLIDING_F_DELTA
         )
         v_rot = 2 * v_diff + v_weighted
         v_rel_para = v_weighted - v_diff
@@ -708,16 +706,6 @@ class PhysicsBall(PhysicsObject):
         self.__path_length += traveled_distance
         if self.__path_length > _MAX_BOUNCABLE_DISTANCE:
             self.set_bounceability(False)
-    
-    # temporary methods
-    def temp(self, surface: PhysicsGround):
-        self.__onground = True
-        self.__ground = surface
-    def vel(self, v, w):
-        self.__v = Vector(v, 0)
-        self.__w = w
-    def getbounceability(self):
-        return self.__bounceable
 
     @property
     def position(self) -> Vector:
