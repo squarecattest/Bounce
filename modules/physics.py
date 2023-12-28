@@ -2,7 +2,7 @@ from vector import *
 from abc import ABC as _ABC, abstractmethod as _abstractmethod
 from typing import Literal as _Literal, Iterable as _Iterable
 from itertools import product as _product
-from math import pi as _pi
+from math import pi as _pi, log as _log
 
 _RAD_INV = 180 / _pi
 
@@ -10,9 +10,13 @@ _RAD_INV = 180 / _pi
 _GRAVITY = Vector(0, 1960)
 _BOUNCE_VELOCITY = -720
 _COLLISION_SCALE, _COLLISION_OFFSET = 0.6, 20
+## Tick-based Constants
 _SLIDING_F_SCALE, _SLIDING_F_OFFSET = 0.92, 0.01
-_ROLLING_R_SCALE, _ROLLING_R_OFFSET = 0.993, 0.1 ## make resistence smaller
-_WALL_REFLECT_VELOCITY_CONSTANT = 2
+_ROLLING_R_SCALE, _ROLLING_R_OFFSET = 0.993, 0.1
+## Time-interval-based Constants
+# _SLIDING_F_SCALE, _SLIDING_F_OFFSET = 15, 0.139
+# _ROLLING_R_SCALE, _ROLLING_R_OFFSET = 1.26, 0.126
+_WALL_REFLECT_VELOCITY_CONSTANT = 1.25
 _WALL_REFLECT_ALLOWED_DISTANCE = 0 #1 ?
 _MAX_BOUNCABLE_DISTANCE = 20
 _HANDLING_TIMES_ONCOLLISION = 3
@@ -32,7 +36,12 @@ def _to_degree(radian: float) -> float:
     '''
     return radian * _RAD_INV
 
-def _linear_contraction(original: Vector, center: Vector, scale: float, offset: float) -> Vector:
+def _tick_based_linear_contraction(
+        original: Vector, 
+        center: Vector, 
+        scale: float, 
+        offset: float
+    ) -> Vector:
     '''
     Map the distance between original and center by:
 
@@ -48,6 +57,11 @@ def _linear_contraction(original: Vector, center: Vector, scale: float, offset: 
         The multiplier in contraction. Should be a number between 0 and 1.
     offset: :class:`float`
         The subtraction constant in contraction. Should be a positive number.
+
+    Returns
+    -------
+    :class:`Vector`
+        The vector after mapped.
     '''
     difference = original - center
     if difference.is_zerovec:
@@ -57,6 +71,45 @@ def _linear_contraction(original: Vector, center: Vector, scale: float, offset: 
     if mag < offset:
         return center.copy()
     return center + unit * (mag - offset)
+
+def _time_based_linear_contraction(
+        original: Vector, 
+        center: Vector, 
+        dt: float, 
+        scale: float, 
+        offset: float
+    ) -> Vector:
+    '''
+    Map the distance between original and center by:
+
+    distance -> distance - dt * (scale * distance + offset)
+
+    Parameters
+    ----------
+    original: :class:`Vector`
+        The vector to be mapped.
+    center: :class:`Vector`
+        The center of contraction.
+    dt: :class:`float`
+        The time interval of a tick.
+    scale: :class:`float`
+        The multiplier in contraction. Should be a positive number.
+    offset: :class:`float`
+        The subtraction constant in contraction. Should be a positive number.
+
+    Returns
+    -------
+    :class:`Vector`
+        The vector after mapped.
+    '''
+    difference = original - center
+    if difference.is_zerovec:
+        return center.copy()
+    unit, mag = difference.unit, difference.magnitude
+    mag -= dt * (scale * mag + offset)
+    if mag < 0:
+        return center.copy()
+    return center + unit * mag
 
 def _wall_reflect_velocity(distance: NumberType) -> NumberType:
     '''
@@ -297,7 +350,8 @@ class PhysicsSlab(PhysicsObject):
         return None
     
     def ckeck_onground(self, ball: "PhysicsBall") -> bool:
-        return self.__pos.x - self.__size[0] // 2 <= ball.pos_x \
+        return self.__v.y == 0 \
+            and self.__pos.x - self.__size[0] // 2 <= ball.pos_x \
             <= self.__pos.x + self.__size[0] // 2
     
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
@@ -442,7 +496,7 @@ class PhysicsBall(PhysicsObject):
         if isinstance(obj, PhysicsBall):
             raise NotImplementedError
         if rel_normal_velocity * normal_vector <= 0:
-            rel_normal_velocity = _linear_contraction(
+            rel_normal_velocity = _tick_based_linear_contraction(
                 -rel_normal_velocity, Vector.zero, _COLLISION_SCALE, _COLLISION_OFFSET
             )
             
@@ -456,7 +510,6 @@ class PhysicsBall(PhysicsObject):
         elif isinstance(obj, PhysicsGround) and self.__v * Vector.unit_downward > 0:
             self.remove_ground_stuck(obj)
 
-    
     def remove_wall_stuck(self, wall: PhysicsWall) -> None:
         '''
         Try to remove the situation where the ball is stuck in the wall. Precisely, if the ball 
@@ -532,22 +585,22 @@ class PhysicsBall(PhysicsObject):
         # Change to relative inertial frame of reference
         rel_linear_velocity = obj_projected_velocity - projected_velocity
         rel_rolling_velocity = obj_tangent * self.__w * self.__radius
-        rel_average_velocity = (rel_linear_velocity + rel_rolling_velocity) / 2
+        rel_average_velocity = (2 * rel_linear_velocity + rel_rolling_velocity) / 3
 
         # Sliding friction
         for _ in range(times):
-            rel_linear_velocity = _linear_contraction(
+            rel_linear_velocity = _tick_based_linear_contraction(
                 rel_linear_velocity, rel_average_velocity, _SLIDING_F_SCALE, _SLIDING_F_OFFSET
             )
-            rel_rolling_velocity = _linear_contraction(
+            rel_rolling_velocity = _tick_based_linear_contraction(
                 rel_rolling_velocity, rel_average_velocity, _SLIDING_F_SCALE, _SLIDING_F_OFFSET
             )
         
-        # Rolling friction / Rolling resistence
-        rel_linear_velocity = _linear_contraction(
+        # Rolling friction / Rolling resistance
+        rel_linear_velocity = _tick_based_linear_contraction(
             rel_linear_velocity, Vector.zero, _ROLLING_R_SCALE, _ROLLING_R_OFFSET
         )
-        rel_rolling_velocity = _linear_contraction(
+        rel_rolling_velocity = _tick_based_linear_contraction(
             rel_rolling_velocity, Vector.zero, _ROLLING_R_SCALE, _ROLLING_R_OFFSET
         )
 
@@ -560,13 +613,13 @@ class PhysicsBall(PhysicsObject):
         if (vec := self.__pos - ball.__pos).magnitude <= self.__radius + ball.__radius:
             return vec
         return None
-        
+    
     def ckeck_onground(self, ball: "PhysicsBall") -> bool:
         return False
     
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
         return self.__pos - ball.__pos
-        
+    
     def set_onground(
             self, 
             onground: bool, 
