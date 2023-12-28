@@ -72,7 +72,7 @@ which is the formula for a two-dimensional perfectly elastic collision. Now we a
 $$v_{\text{rel, }\perp}^{\prime}\rightarrow v_{\text{rel, }\perp}^{\prime\prime}=\text{LC}_{\text{tick}}(v_{\text{rel, }\perp}^{\prime}, \alpha_{c}, \beta_{c})$$
 where $\alpha_{c}$ and $\beta_{c}$ are the collision parameters which can be set arbitrarily. Therefore the total transformation of the perpendicular velocity is:
 $$\boxed{v_{\text{rel, }\perp}\rightarrow v_{\text{rel, }\perp}^{\prime\prime}=\text{LC}_{\text{tick}}(-v_{\text{rel, }\perp}, \alpha_{c}, \beta_{c})}$$
-By adding back the parallel component and then change back to background frame (by adding the velocity of the massive object) we can get the final velocity of the ball after collision. We also apply friction when in collision, which affects the parallel component of the velocity. See [the next section](##sliding-friction).
+By adding back the parallel component and then change back to background frame (by adding the velocity of the massive object) we can get the final velocity of the ball after collision. We also apply friction when in collision, which affects the parallel component of the velocity. See [the next section](#sliding-friction).
 
 ### Collision with another ball
 Now we consider the collision between two balls. Let the velocity and the mass of one of the ball be $\overrightarrow{v_{1}}, m_{1}$ respectively, and $\overrightarrow{v_{2}}, m_{2}$ for another one. Also, let the normal unit vector of the contact point be $\hat{n}$, and the tangent unit vector be $\hat{t}$.
