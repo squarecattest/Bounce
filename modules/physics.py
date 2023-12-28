@@ -6,21 +6,22 @@ from math import pi as _pi, log as _log
 
 _RAD_INV = 180 / _pi
 
-# Constant Settings
+'------------------Constant Settings------------------'
 _GRAVITY = Vector(0, 1960)
 _BOUNCE_VELOCITY = -720
-_COLLISION_SCALE, _COLLISION_OFFSET = 0.6, 20
-## Tick-based Constants
-_SLIDING_F_SCALE, _SLIDING_F_OFFSET = 0.92, 0.01
-_ROLLING_R_SCALE, _ROLLING_R_OFFSET = 0.993, 0.1
-## Time-interval-based Constants
-# _SLIDING_F_SCALE, _SLIDING_F_OFFSET = 15, 0.139
-# _ROLLING_R_SCALE, _ROLLING_R_OFFSET = 1.26, 0.126
 _WALL_REFLECT_VELOCITY_CONSTANT = 1.25
 _WALL_REFLECT_ALLOWED_DISTANCE = 0 #1 ?
 _MAX_BOUNCABLE_DISTANCE = 20
-_HANDLING_TIMES_ONCOLLISION = 3
+_SLIDING_MULTIPLIER = 3
 
+## Tick-based Constants
+_COLLISION_SCALE, _COLLISION_OFFSET = 0.6, 20
+_SLIDING_F_SCALE, _SLIDING_F_OFFSET = 0.92, 0.01
+_ROLLING_R_SCALE, _ROLLING_R_OFFSET = 0.993, 0.1
+## Time-based Constants
+_SLIDING_F_GAMMA, _SLIDING_F_DELTA = 15, 0.139
+_ROLLING_GAMMA, _ROLLING_DELTA = 1.26, 0.126
+'-----------------------------------------------------'
 
 def _sign(number: NumberType) -> _Literal[-1, 0, 1]:
     '''
@@ -39,8 +40,8 @@ def _to_degree(radian: float) -> float:
 def _tick_based_linear_contraction(
         original: Vector, 
         center: Vector, 
-        scale: float, 
-        offset: float
+        alpha: float, 
+        beta: float
     ) -> Vector:
     '''
     Map the distance between original and center by:
@@ -53,9 +54,9 @@ def _tick_based_linear_contraction(
         The vector to be mapped.
     center: :class:`Vector`
         The center of contraction.
-    scale: :class:`float`
+    alpha: :class:`float`
         The multiplier in contraction. Should be a number between 0 and 1.
-    offset: :class:`float`
+    beta: :class:`float`
         The subtraction constant in contraction. Should be a positive number.
 
     Returns
@@ -67,17 +68,17 @@ def _tick_based_linear_contraction(
     if difference.is_zerovec:
         return center.copy()
     unit, mag = difference.unit, difference.magnitude
-    mag *= scale
-    if mag < offset:
+    mag *= alpha
+    if mag < beta:
         return center.copy()
-    return center + unit * (mag - offset)
+    return center + unit * (mag - beta)
 
 def _time_based_linear_contraction(
         original: Vector, 
         center: Vector, 
         dt: float, 
-        scale: float, 
-        offset: float
+        gamma: float, 
+        delta: float
     ) -> Vector:
     '''
     Map the distance between original and center by:
@@ -92,9 +93,9 @@ def _time_based_linear_contraction(
         The center of contraction.
     dt: :class:`float`
         The time interval of a tick.
-    scale: :class:`float`
+    gamma: :class:`float`
         The multiplier in contraction. Should be a positive number.
-    offset: :class:`float`
+    delta: :class:`float`
         The subtraction constant in contraction. Should be a positive number.
 
     Returns
@@ -106,7 +107,7 @@ def _time_based_linear_contraction(
     if difference.is_zerovec:
         return center.copy()
     unit, mag = difference.unit, difference.magnitude
-    mag -= dt * (scale * mag + offset)
+    mag -= dt * (gamma * mag + delta)
     if mag < 0:
         return center.copy()
     return center + unit * mag
@@ -399,6 +400,7 @@ class PhysicsBall(PhysicsObject):
     __ground: PhysicsObject
     __bounceable: bool
     __path_length: LengthType
+    __collision_exceptions: list[PhysicsObject]
 
     def __init__(self, position: VectorType, radius: LengthType) -> None:
         '''
@@ -418,10 +420,20 @@ class PhysicsBall(PhysicsObject):
         self.__ground = None
         self.__bounceable = False
         self.__path_length = 0
+        self.__collision_exceptions = []
 
-    def tick(self, dt: float, objs: _Iterable[PhysicsObject], *, bounce: bool = False) -> None:
+    def tick(self, dt: float, objs: _Iterable[PhysicsObject], bounce: bool) -> None:
         '''
-        To be documented
+        Apply all the interactions.
+
+        Parameters
+        ----------
+        dt: :class:`float`
+            The time interval of a tick.
+        objs: :class:`Iterable[PhysicsObject]`
+            All the other interactable objects.
+        bounce: :class:`bool`
+            Whether the player bounced.
         '''
         self.__pos += self.__v * dt
         self.__angle += self.__w * dt
@@ -429,14 +441,16 @@ class PhysicsBall(PhysicsObject):
         self.update_bounceability(self.__v.magnitude * dt)
         if not self.__onground:
             self.__v += _GRAVITY * dt
-            exception = None
         else:
-            exception = self.__ground
-            self.handle_friction()
+            self.__collision_exceptions.append(self.__ground)
+            self.handle_friction(
+                dt, self.__ground.velocity, self.__ground.get_normal_vector(self)
+            )
         if bounce:
             self.bounce()
         for obj in objs:
-            self.handle_collision(obj, exception)
+            self.handle_collision(dt, obj)
+        self.__collision_exceptions.clear()
 
     def bounce(self) -> None:
         '''
@@ -448,67 +462,91 @@ class PhysicsBall(PhysicsObject):
         self.set_onground(False)
         self.set_bounceability(False)
 
-    def handle_collision(self, obj: PhysicsObject, exception: PhysicsObject = None) -> None:
+    def handle_collision(self, dt: float, obj: PhysicsObject) -> None:
         '''
         Detect and handle the collision of the object and this ball. If collision occurs, a 
-        force is applied on the ball. If further the object is not a wall, friction is also 
-        applied on the ball.
+        force is applied on the ball. If the object is not a wall, friction is also applied on 
+        the ball. If the collision occurs inside a wall, :meth:`wall_stuck_removal` will be 
+        called. If after the collision is applied and the ball is still moving into the ground, 
+        :meth:`ground_stuck_removal` will be called.
 
         Parameters
         ----------
+        dt: :class:`float`
+            The time interval of a tick.
         obj: :class:`PhysicsObject`
             The object to be checked.
-        exception: Optional[:class:`PhysicsObject`]
-            The object to be excluded from possible colliding object list. Usually the ground of
-            the ball.
         '''
-        if obj is exception:
+        if obj in self.__collision_exceptions:
             return
         if (collision_vector := obj.check_collision(self)) is None:
             return
-        self.collide(obj, obj.velocity, collision_vector)
+        if isinstance(obj, PhysicsBall):
+            self.collide_with_ball(obj, collision_vector)
+        else:
+            self.collide_with_object(obj, collision_vector)
         if not isinstance(obj, PhysicsWall):
             self.handle_friction(
+                dt, 
                 obj.velocity, 
                 collision_vector, 
-                times=_HANDLING_TIMES_ONCOLLISION
+                times=_SLIDING_MULTIPLIER
             )
+        else:
+            self.remove_wall_stuck(obj)
+        if isinstance(obj, PhysicsGround) and self.__v * Vector.unit_downward > 0:
+            self.remove_ground_stuck(obj)
 
-    def collide(self, obj: PhysicsObject, obj_velocity: Vector, normal_vector: Vector) -> None:
+    def collide_with_ball(self, ball: "PhysicsBall", normal_vector: Vector) -> None:
         '''
-        Apply the given collision to the ball. If the collision occurs inside a wall, 
-        :meth:`wall_stuck_removal` will be called. If after the collision is applied and the
-        ball is still moving into the ground, :meth:`ground_stuck_removal` will be called.
+        Apply the collision force to the ball for a ball-to-ball collision.
+        
+        Parameters
+        ----------
+        ball: :class:`PhysicsBall`
+            The other ball which the ball collides with.
+        normal_vector: :class:`Vector`
+            The normal vector of the object at the contact point.
+        '''
+        ball.__collision_exceptions.append(self)
+        v1_perp = self.__v.project_on(normal_vector)
+        v2_perp = ball.__v.project_on(normal_vector)
+        if (v1_perp - v2_perp) * normal_vector >= 0:
+            return
+        v1_para = self.__v - v1_perp
+        v2_para = ball.__v - v2_perp
+        v1_perp, v2_perp = _tick_based_linear_contraction(
+                v2_perp, Vector.zero, _COLLISION_SCALE, _COLLISION_OFFSET
+            ), _tick_based_linear_contraction(
+                v1_perp, Vector.zero, _COLLISION_SCALE, _COLLISION_OFFSET
+            )
+        self.__v = v1_perp + v1_para
+        ball.__v = v2_perp + v2_para
+
+    def collide_with_object(self, obj: PhysicsObject, normal_vector: Vector) -> None:
+        '''
+        Apply the collision force to the ball for a ball-to-object collision.
         
         Parameters
         ----------
         obj: :class:`PhysicsObject`
             The object which the ball collides with.
-        obj_velocity: :class:`Vector`
-            The velocity of the object.
         normal_vector: :class:`Vector`
             The normal vector of the object at the contact point.
         '''
-        rel_velocity = self.__v - obj_velocity
-        rel_normal_velocity = rel_velocity.project_on(normal_vector)
-        rel_tangent_velocity = rel_velocity - rel_normal_velocity
-        
-        if isinstance(obj, PhysicsBall):
-            raise NotImplementedError
-        if rel_normal_velocity * normal_vector <= 0:
-            rel_normal_velocity = _tick_based_linear_contraction(
-                -rel_normal_velocity, Vector.zero, _COLLISION_SCALE, _COLLISION_OFFSET
-            )
-            
-            if rel_normal_velocity.is_zerovec and normal_vector == Vector.unit_upward:
-                self.set_onground(True, ground=obj)
-            elif normal_vector * Vector.unit_upward > 0:
-                self.set_bounceability(True)
-            self.__v = obj_velocity + rel_tangent_velocity + rel_normal_velocity
-        if isinstance(obj, PhysicsWall):
-            self.remove_wall_stuck(obj)
-        elif isinstance(obj, PhysicsGround) and self.__v * Vector.unit_downward > 0:
-            self.remove_ground_stuck(obj)
+        v_rel = self.__v - (v_2 := obj.velocity)
+        v_rel_perp = v_rel.project_on(normal_vector)
+        if v_rel_perp * normal_vector > 0:
+            return
+        v_rel_para = v_rel - v_rel_perp
+        v_rel_perp = _tick_based_linear_contraction(
+            -v_rel_perp, Vector.zero, _COLLISION_SCALE, _COLLISION_OFFSET
+        )
+        self.__v = v_2 + v_rel_perp + v_rel_para
+        if v_rel_perp.is_zerovec and normal_vector == Vector.unit_upward:
+            self.set_onground(True, ground=obj)
+        elif self.__v.y <= 0 and normal_vector * Vector.unit_upward > 0:
+            self.set_bounceability(True)
 
     def remove_wall_stuck(self, wall: PhysicsWall) -> None:
         '''
@@ -554,63 +592,55 @@ class PhysicsBall(PhysicsObject):
 
     def handle_friction(
             self, 
-            obj_velocity: Vector = None, 
-            normal_vector: Vector = None, 
+            dt: float, 
+            obj_velocity: Vector, 
+            normal_vector: Vector, 
             *, 
             times: int = 1
         ) -> None:
         '''
-        Apply the simulated friction within a tick to the ball. If the ball is on the ground, 
-        the object parameters need not be passed and will be overridden.
+        Apply the simulated friction within a tick to the ball.
         
         Parameters
         ----------
-        obj_velocity: Optional[:class:`Vector`]
-            The velocity of the object. Default to the ground of the ball.
-        normal_vector: Optional[:class:`Vector`]
-            The normal vector of the object at the contact point. Default to the normal vector 
-            of the ground.
+        dt: :class:`float`
+            The time interval of a tick.
+        obj_velocity: :class:`Vector`
+            The velocity of the object.
+        normal_vector: :class:`Vector`
+            The normal vector of the object at the contact point.
         times: Optional[:class:`int`]
             The times of sliding friction applied. Default to 1.
         '''
-        if self.__onground:
-            obj_velocity = self.__ground.velocity
-            normal_vector = self.__ground.get_normal_vector(self)
-        
-        obj_tangent = Vector(-normal_vector[1], normal_vector[0]).unit
-        obj_projected_velocity = obj_velocity.project_on(obj_tangent)
-        projected_velocity = self.__v.project_on(obj_tangent)
-        normal_velocity = self.__v - projected_velocity
-
-        # Change to relative inertial frame of reference
-        rel_linear_velocity = obj_projected_velocity - projected_velocity
-        rel_rolling_velocity = obj_tangent * self.__w * self.__radius
-        rel_average_velocity = (2 * rel_linear_velocity + rel_rolling_velocity) / 3
+        dt = 1/180#
+        tangent_vector = Vector(-normal_vector.y, normal_vector.x).unit
+        #
+        v_rel = obj_velocity - self.__v
+        v_rel_para = v_rel.project_on(tangent_vector)
+        v_rel_perp = v_rel - v_rel_para
+        v_rot = tangent_vector * (self.__w * self.__radius)
 
         # Sliding friction
-        for _ in range(times):
-            rel_linear_velocity = _tick_based_linear_contraction(
-                rel_linear_velocity, rel_average_velocity, _SLIDING_F_SCALE, _SLIDING_F_OFFSET
-            )
-            rel_rolling_velocity = _tick_based_linear_contraction(
-                rel_rolling_velocity, rel_average_velocity, _SLIDING_F_SCALE, _SLIDING_F_OFFSET
-            )
-        
-        # Rolling friction / Rolling resistance
-        rel_linear_velocity = _tick_based_linear_contraction(
-            rel_linear_velocity, Vector.zero, _ROLLING_R_SCALE, _ROLLING_R_OFFSET
+        v_diff = (v_rot - v_rel_para) / 3
+        v_weighted = (v_rot + 2 * v_rel_para) / 3
+        v_diff = _time_based_linear_contraction(
+            v_diff, Vector.zero, times * dt, _SLIDING_F_GAMMA, _SLIDING_F_DELTA
         )
-        rel_rolling_velocity = _tick_based_linear_contraction(
-            rel_rolling_velocity, Vector.zero, _ROLLING_R_SCALE, _ROLLING_R_OFFSET
-        )
+        v_rot = 2 * v_diff + v_weighted
+        v_rel_para = v_weighted - v_diff
 
-        # Change back to the normal frame of reference
-        self.__v = obj_projected_velocity - rel_linear_velocity + normal_velocity
-        self.__w = rel_rolling_velocity.magnitude * _sign(rel_rolling_velocity * obj_tangent) \
-            / self.radius
+        # Rolling friction
+        v_rot = _time_based_linear_contraction(
+            v_rot, Vector.zero, dt, _ROLLING_GAMMA, _ROLLING_DELTA
+        )
+        v_rel_para = _time_based_linear_contraction(
+            v_rel_para, Vector.zero, dt, _ROLLING_GAMMA, _ROLLING_DELTA
+        )
+        self.__v = obj_velocity - (v_rel_perp + v_rel_para)
+        self.__w = v_rel_para.magnitude * _sign(v_rel_para * tangent_vector) / self.__radius
     
     def check_collision(self, ball: "PhysicsBall") -> Vector | None:
-        if (vec := self.__pos - ball.__pos).magnitude <= self.__radius + ball.__radius:
+        if (vec := ball.__pos - self.__pos).magnitude <= self.__radius + ball.__radius:
             return vec
         return None
     
@@ -618,7 +648,7 @@ class PhysicsBall(PhysicsObject):
         return False
     
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
-        return self.__pos - ball.__pos
+        return ball.__pos - self.__pos
     
     def set_onground(
             self, 
