@@ -180,7 +180,7 @@ class Vector:
 
     def project_on(self, __v: "Vector") -> "Vector":
         '''
-        Return the projected vector from itself onto `__v`.
+        Return the projected vector onto `__v`.
         '''
         if __v.is_zerovec:
             raise ValueError("Cannot project a vector onto a zero vector")
