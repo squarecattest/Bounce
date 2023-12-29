@@ -2,10 +2,9 @@ from vector import *
 from abc import ABC as _ABC, abstractmethod as _abstractmethod
 from typing import Literal as _Literal, Iterable as _Iterable
 from itertools import product as _product
-from math import pi as _pi, log as _log
+from math import pi as _pi
 
 _RAD_INV = 180 / _pi
-
 '------------------Constant Settings------------------'
 _GRAVITY = Vector(0, 1960)
 _BOUNCE_VELOCITY = -720
@@ -389,7 +388,7 @@ class PhysicsSlab(PhysicsObject):
 
 class PhysicsBall(PhysicsObject):
     '''
-    The class represents physical interaction of a ball.
+    The class representing physical interaction of a ball.
     '''
     __pos: Vector
     __angle: NumberType
