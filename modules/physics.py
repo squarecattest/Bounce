@@ -19,7 +19,7 @@ _SLIDING_F_SCALE, _SLIDING_F_OFFSET = 0.92, 0.01
 _ROLLING_R_SCALE, _ROLLING_R_OFFSET = 0.993, 0.1
 ## Time-based Constants
 _SLIDING_F_GAMMA, _SLIDING_F_DELTA = 15, 0.139
-_ROLLING_GAMMA, _ROLLING_DELTA = 1.26, 0.126
+_ROLLING_GAMMA, _ROLLING_DELTA = 3.5, 0.2
 '-----------------------------------------------------'
 
 def _sign(number: NumberType) -> _Literal[-1, 0, 1]:
