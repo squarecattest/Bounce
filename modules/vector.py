@@ -267,7 +267,7 @@ class Vector:
         '''
         Return a unit vector pointing upward.
         '''
-        return cls(0, -1)
+        return cls(0, 1)
     
     @classmethod
     @property
@@ -275,7 +275,7 @@ class Vector:
         '''
         Return a unit vector pointing upward.
         '''
-        return cls(0, 1)
+        return cls(0, -1)
     
     @classmethod
     @property
