@@ -6,19 +6,19 @@ from math import pi as _pi
 
 _RAD_INV = 180 / _pi
 '------------------Constant Settings------------------'
-_GRAVITY = Vector(0, 1960)
-_BOUNCE_VELOCITY = -720
+_GRAVITY = Vector(0, -1960)
+_BOUNCE_VELOCITY = 720
 _WALL_REFLECT_VELOCITY_CONSTANT = 1.25
 _WALL_REFLECT_ALLOWED_DISTANCE = 0 #1 ?
 _MAX_BOUNCABLE_DISTANCE = 20
 _SLIDING_MULTIPLIER = 3
 
 ## Tick-based Constants
-_COLLISION_SCALE, _COLLISION_OFFSET = 0.6, 20
-_SLIDING_F_SCALE, _SLIDING_F_OFFSET = 0.92, 0.01
-_ROLLING_R_SCALE, _ROLLING_R_OFFSET = 0.993, 0.1
+_COLLISION_ALPHA, _COLLISION_BETA = 0.6, 20
+_SLIDING_ALPHA, _SLIDING_BETA = 0.92, 0.01
+_ROLLING_ALPHA, _ROLLING_BETA = 0.993, 0.1
 ## Time-based Constants
-_SLIDING_F_GAMMA, _SLIDING_F_DELTA = 15, 0.139
+_SLIDING_GAMMA, _SLIDING_DELTA = 15, 0.139
 _ROLLING_GAMMA, _ROLLING_DELTA = 3.5, 0.2
 '-----------------------------------------------------'
 
@@ -45,7 +45,7 @@ def _tick_based_linear_contraction(
     '''
     Map the distance between original and center by:
 
-    distance -> scale * distance - offset
+    distance -> alpha * distance - beta
 
     Parameters
     ----------
@@ -82,7 +82,7 @@ def _time_based_linear_contraction(
     '''
     Map the distance between original and center by:
 
-    distance -> distance - dt * (scale * distance + offset)
+    distance -> distance - dt * (gamma * distance + delta)
 
     Parameters
     ----------
@@ -201,7 +201,7 @@ class PhysicsGround(PhysicsObject):
         self.__y_top = y_top
 
     def check_collision(self, ball: "PhysicsBall") -> Vector | None:
-        if self.__y_top <= ball.pos_y + ball.radius:
+        if ball.pos_y - ball.radius <= self.__y_top:
             return Vector.unit_upward
         return None
 
@@ -331,9 +331,9 @@ class PhysicsSlab(PhysicsObject):
         # Check sides
         if x_range[0] <= ball.pos_x <= x_range[1]:
             if y_range[0] <= ball.pos_y + ball.radius <= y_range[1]:
-                return Vector.unit_upward
-            if y_range[0] <= ball.pos_y - ball.radius <= y_range[1]:
                 return Vector.unit_downward
+            if y_range[0] <= ball.pos_y - ball.radius <= y_range[1]:
+                return Vector.unit_upward
         if y_range[0] <= ball.pos_y <= y_range[1]:
             if x_range[0] <= ball.pos_x + ball.radius <= x_range[1]:
                 return Vector.unit_leftward
@@ -355,21 +355,36 @@ class PhysicsSlab(PhysicsObject):
             <= self.__pos.x + self.__size[0] // 2
     
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
-        return Vector(0, -1)
+        return Vector.unit_upward
 
     @property
     def position(self) -> Vector:
         '''
-        (Read-only) The position vector of the center of the slab.
+        (Read-only) The position vector of the center of the slab. Vector components can be 
+        changed by calling vector setters.
         '''
-        return self.__pos.copy()
+        return self.__pos
+    
+    @property
+    def pos_x(self) -> NumberType:
+        '''
+        (Read-only) The x coordinate of the center of the slab.
+        '''
+        return self.__pos.x
+    
+    @property
+    def pos_y(self) -> NumberType:
+        '''
+        (Read-only) The y coordinate of the center of the slab.
+        '''
+        return self.__pos.y
 
     @property
     def y_top(self) -> NumberType:
         '''
         (Read-only) The y coordinate of the top-side surface.
         '''
-        return self.__pos.y - self.__size[1] // 2
+        return self.__pos.y + self.__size[1] // 2
     
     @property
     def size(self) -> tuple[int, int]:
@@ -381,9 +396,10 @@ class PhysicsSlab(PhysicsObject):
     @property
     def velocity(self):
         '''
-        (Read-only) The velocity of the slab.
+        (Read-only) The velocity of the slab. Vector components can be changed by calling 
+        vector setters.
         '''
-        return self.__v.copy()
+        return self.__v
 
 
 class PhysicsBall(PhysicsObject):
@@ -400,6 +416,7 @@ class PhysicsBall(PhysicsObject):
     __bounceable: bool
     __path_length: LengthType
     __collision_exceptions: list[PhysicsObject]
+    __debug_msgs: list[str]
 
     def __init__(self, position: VectorType, radius: LengthType) -> None:
         '''
@@ -420,6 +437,7 @@ class PhysicsBall(PhysicsObject):
         self.__bounceable = False
         self.__path_length = 0
         self.__collision_exceptions = []
+        self.__debug_msgs = []
 
     def tick(self, dt: float, objs: _Iterable[PhysicsObject], bounce: bool) -> None:
         '''
@@ -447,6 +465,7 @@ class PhysicsBall(PhysicsObject):
             )
         if bounce:
             self.bounce()
+            self.__debug_msgs.append("<bounce>")
         for obj in objs:
             self.handle_collision(dt, obj)
         self.__collision_exceptions.clear()
@@ -457,7 +476,7 @@ class PhysicsBall(PhysicsObject):
         '''
         if not self.__bounceable:
             return
-        self.__v.y = max(_BOUNCE_VELOCITY, self.__v.y + _BOUNCE_VELOCITY)
+        self.__v.y = min(_BOUNCE_VELOCITY, self.__v.y + _BOUNCE_VELOCITY)
         self.set_onground(False)
         self.set_bounceability(False)
 
@@ -515,12 +534,14 @@ class PhysicsBall(PhysicsObject):
         v1_para = self.__v - v1_perp
         v2_para = ball.__v - v2_perp
         v1_perp, v2_perp = _tick_based_linear_contraction(
-                v2_perp, Vector.zero, _COLLISION_SCALE, _COLLISION_OFFSET
+                v2_perp, Vector.zero, _COLLISION_ALPHA, _COLLISION_BETA
             ), _tick_based_linear_contraction(
-                v1_perp, Vector.zero, _COLLISION_SCALE, _COLLISION_OFFSET
+                v1_perp, Vector.zero, _COLLISION_ALPHA, _COLLISION_BETA
             )
         self.__v = v1_perp + v1_para
         ball.__v = v2_perp + v2_para
+        self.__debug_msgs.append("<collide: Ball>")
+        ball.__debug_msgs.append("<collide: Ball>")
 
     def collide_with_object(self, obj: PhysicsObject, normal_vector: Vector) -> None:
         '''
@@ -539,13 +560,16 @@ class PhysicsBall(PhysicsObject):
             return
         v_rel_para = v_rel - v_rel_perp
         v_rel_perp = _tick_based_linear_contraction(
-            -v_rel_perp, Vector.zero, _COLLISION_SCALE, _COLLISION_OFFSET
+            -v_rel_perp, Vector.zero, _COLLISION_ALPHA, _COLLISION_BETA
         )
         self.__v = v_2 + v_rel_perp + v_rel_para
         if v_rel_perp.is_zerovec and normal_vector == Vector.unit_upward:
             self.set_onground(True, ground=obj)
-        elif self.__v.y <= 0 and normal_vector * Vector.unit_upward > 0:
+        elif self.__v.y >= 0 and normal_vector * Vector.unit_upward > 0:
             self.set_bounceability(True)
+        self.__debug_msgs.append(
+            f"<collide: {type(obj).__name__.removeprefix("Physics")}>"
+        )
 
     def remove_wall_stuck(self, wall: PhysicsWall) -> None:
         '''
@@ -558,6 +582,7 @@ class PhysicsBall(PhysicsObject):
         wall: :class:`PhysicsWall`
             The wall which the ball get stuck in.
         '''
+        self.__debug_msgs.append("<stuck removal: Wall>")
         if self.__onground:
             if wall.facing == PhysicsWall.FACING_RIGHT:
                 self.__pos.x = wall.x_side + self.__radius
@@ -586,8 +611,9 @@ class PhysicsBall(PhysicsObject):
         ground: :class:`PhysicsGround`
             The ground which the ball get stuck in.
         '''
-        self.__pos.y = ground.y_top - self.__radius
+        self.__pos.y = ground.y_top + self.__radius
         self.__v.y = 0
+        self.__debug_msgs.append("<stuck removal: Ground>")
 
     def handle_friction(
             self, 
@@ -621,7 +647,7 @@ class PhysicsBall(PhysicsObject):
         v_diff = (v_rot - v_rel_para) / 3
         v_weighted = (v_rot + 2 * v_rel_para) / 3
         v_diff = _time_based_linear_contraction(
-            v_diff, Vector.zero, multiplier * dt, _SLIDING_F_GAMMA, _SLIDING_F_DELTA
+            v_diff, Vector.zero, multiplier * dt, _SLIDING_GAMMA, _SLIDING_DELTA
         )
         v_rot = 2 * v_diff + v_weighted
         v_rel_para = v_weighted - v_diff
@@ -661,12 +687,12 @@ class PhysicsBall(PhysicsObject):
         (positional)onground: `bool`
             Whether the ball is now on-ground.
         ground: Optional[Union[:class:`PhysicsGround`, :class:`PhysicsSlab`]]
-            The ground which the ball is on. Required when ``onground`` is ``True``.
+            The ground which the ball is on. Required only when ``onground`` is ``True``.
         '''
         self.__onground = onground
         self.__ground = ground
         if onground:
-            self.__pos.y = ground.y_top - self.__radius
+            self.__pos.y = ground.y_top + self.__radius
             self.set_bounceability(True)
         
     def set_bounceability(self, bounceable: bool, /) -> None:
@@ -709,55 +735,73 @@ class PhysicsBall(PhysicsObject):
     @property
     def position(self) -> Vector:
         '''
-        (Read-only) The position vector of the center of the ball.
+        (Read-only) The position vector of the center of the ball. Vector components can be 
+        changed by calling vector setters.
         '''
-        return self.__pos.copy()
+        return self.__pos
     
     @property
-    def pos_x(self):
+    def pos_x(self) -> NumberType:
         '''
         (Read-only) The x coordinate of the center of the ball.
         '''
         return self.__pos.x
     
     @property
-    def pos_y(self):
+    def pos_y(self) -> NumberType:
         '''
         (Read-only) The y coordinate of the center of the ball.
         '''
         return self.__pos.y
     
     @property
-    def velocity(self):
+    def velocity(self) -> Vector:
         '''
-        (Read-only) The velocity of the ball.
+        (Read-only) The velocity of the ball. Vector components can be changed by calling 
+        vector setters.
         '''
-        return self.__v.copy()
+        return self.__v
     
     @property
-    def rad_angle(self):
+    def rad_angle(self) -> NumberType:
         '''
         (Read-only) The rotated angle of the ball, in unit of radian.
         '''
         return self.__angle
     
     @property
-    def deg_angle(self):
+    def deg_angle(self) -> NumberType:
         '''
         (Read-only) The rotated angle of the ball, in unit of degree.
         '''
         return _to_degree(self.__angle)
     
     @property
-    def radius(self):
+    def angular_frequency(self) -> NumberType:
+        '''
+        (Read-only) The angular frequency of the ball, in unit of radian/second.
+        '''
+        return self.__w
+    @property
+    def radius(self) -> LengthType:
         '''
         (Read-only) The radius of the ball.
         '''
         return self.__radius
     
     @property
-    def bounceable(self):
+    def bounceable(self) -> bool:
         '''
         (Read-only) The bounceability of the ball.
         '''
         return self.__bounceable
+    
+    @property
+    def debug_msgs(self) -> tuple[str]:
+        '''
+        (Read-only) Read the debug messages of the ball. This will also clear the message list 
+        of the :class:`PhysicsBall` instance.
+        '''
+        msgs = tuple(self.__debug_msgs)
+        self.__debug_msgs.clear()
+        return msgs
