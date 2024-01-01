@@ -1,5 +1,5 @@
 from collections.abc import Iterable as _Iterable, Generator as _Generator
-from typing import overload as _overload, Self as _Self, Literal as _Literal, Any as _Any
+from typing import overload as _overload, Self as _Self, Literal as _Literal
 from math import isfinite as _isfinite
 
 type NumberType = int | float
@@ -158,7 +158,7 @@ class Vector:
         else:
             self.__y = __value
 
-    def __iter__(self) -> _Generator[NumberType, _Any, None]:
+    def __iter__(self) -> _Generator[NumberType, None, None]:
         yield self.__x
         yield self.__y
 
