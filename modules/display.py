@@ -151,8 +151,7 @@ class Alignment:
                         "Expected 'facing' key with a facing value for a filling alignment"
                     )
         if Alignment.Flag.REFERENCED in self.flags:
-            #if not isinstance(offset := kwargs.get("offset"), Vector):
-            if not isinstance(offset := Vector(kwargs.get("offset")), Vector): # fix
+            if not isinstance(offset := kwargs.get("offset"), Vector):
                 raise TypeError(
                     "Expected 'offset' key with a vector value for a referenced alignment"
                 )
@@ -274,7 +273,6 @@ class Displayable:
         display_coordinate: :class:`Vector`
             The display coordinate relative to the reference point.
         '''
-        display_coordinate = Vector(display_coordinate) # delete
         if not Alignment.Flag.FILL in self.alignment.flags:
             screen.blit(self.surface, self.__topleft(screen, display_coordinate).inttuple)
             return
@@ -451,6 +449,5 @@ class DisplayableBall(Displayable):
         angle: :class:`NumberType`
             The rotation angle of the ball, in unit of degree.
         '''
-        self.surface = rotate(self.base_surface, -angle) # why -angle?
+        self.surface = rotate(self.base_surface, -angle)
         return super().display(screen, display_coordinate)
-# fix all comments
