@@ -84,8 +84,8 @@ class Alignment:
             case _:
                 raise ValueError(f"Unknown alignment mode")
     
-    __screen_meth: _Callable[[_Surface], Vector]
-    __surface_meth: _Callable[[_Surface], Vector]
+    __screenmeth: _Callable[[_Surface], Vector]
+    __surfacemeth: _Callable[[_Surface], Vector]
     flags: Flag
     __facing: Facing
     __offset: Vector
@@ -124,8 +124,8 @@ class Alignment:
                     f"Expected Alignment.Flag for flags argument, got {_typename(flag)}"
                 )
         
-        self.__screen_meth = Alignment.__mode(screen_mode)
-        self.__surface_meth = Alignment.__mode(surface_mode)
+        self.__screenmeth = Alignment.__mode(screen_mode)
+        self.__surfacemeth = Alignment.__mode(surface_mode)
         self.flags = _reduce(lambda flag, newflag: flag | newflag, flags, Alignment.Flag.NONE)
         self.__offset = Vector.zero
         if Alignment.Flag.FILL in self.flags:
@@ -157,9 +157,14 @@ class Alignment:
                 )
             self.__offset = offset
     
-    def __call__(self, screen: _Surface, surface: _Surface) -> Vector:
+    def __call__(
+            self, 
+            screen: _Surface, 
+            surface: _Surface, 
+            offset: Vector = Vector.zero
+        ) -> Vector:
         '''
-        Return the reference point on the screen of the given alignment mode.
+        Return the display coordinate on the screen of the given alignment mode.
 
         Parameters
         ----------
@@ -167,20 +172,25 @@ class Alignment:
             The main screen which the surface is displayed on.
         surface: :class:`pygame.Surface`
             The surface object to be displayed on the screen.
+        offset: :class:`Vector`
+            The offset of the display relative to the reference point.
 
         Returns
         -------
         :class:`Vector`
-            The reference point. A reference point is the top-left corner of the surface on the 
-            screen. If a display coordinate is given when dispalying, the surface will be 
-            displayed with the display coordinate as an offset.
+            The display coordinate.
         '''
-        return self.__screen_meth(screen) - self.__surface_meth(surface) + self.__offset
+        return self.__screenmeth(screen) - self.__surfacemeth(surface) + self.__offset + offset
     
-    def repeat(self, screen: _Surface, surface: _Surface) -> _Generator[Vector, None, None]:
+    def repeat(
+            self, 
+            screen: _Surface, 
+            surface: _Surface, 
+            offset: Vector
+        ) -> _Generator[Vector, None, None]:
         '''
-        Return a generator which generates all the reference points on the screen of the given 
-        alignment mode with flag ``FILL``.
+        Return a generator which generates all the display coordinates on the screen of the 
+        given alignment mode with flag ``FILL``.
         
         Parameters
         ----------
@@ -188,60 +198,60 @@ class Alignment:
             The main screen which the surface is displayed on.
         surface: :class:`pygame.Surface`
             The surface object to be displayed on the screen.
+        offset: :class:`Vector`
+            The offset of the display relative to the reference point.
 
         Returns
         -------
         :class:`Generator[Vector, None, None]`
-            The generator which generates all the reference points. A reference point is the 
-            top-left corner of the surface on the screen. If a display coordinate is given when 
-            dispalying, the surface will be displayed with the display coordinate as an offset.
+            The generator which generates all the display coordinates.
         '''
         def LowerBound(coordinate: int, surface_size: int) -> int:
             return -(1 + (coordinate - 1) // surface_size)
         def UpperBound(coordinate: int, screen_size: int, surface_size: int) -> int:
             return 1 + (screen_size - coordinate + surface_size) // surface_size
         
-        reference = self.__call__(screen, surface)
-        reference_x, reference_y = reference.inttuple
+        display = self.__call__(screen, surface) + offset
+        display_x, display_y = display.inttuple
         screen_x, screen_y = screen.get_size()
         surface_x, surface_y = surface.get_size()
         match self.__facing:
             case Alignment.Facing.LEFT:
-                range_x = range(LowerBound(reference_x, surface_x), 1)
+                range_x = range(LowerBound(display_x, surface_x), 1)
                 range_y = range(
-                    LowerBound(reference_y, surface_y), 
-                    UpperBound(reference_y, screen_y, surface_y) + 1
+                    LowerBound(display_y, surface_y), 
+                    UpperBound(display_y, screen_y, surface_y) + 1
                 )
             case Alignment.Facing.RIGHT:
-                range_x = range(0, UpperBound(reference_x, screen_x, surface_x) + 1)
+                range_x = range(0, UpperBound(display_x, screen_x, surface_x) + 1)
                 range_y = range(
-                    LowerBound(reference_y, surface_y), 
-                    UpperBound(reference_y, screen_y, surface_y) + 1
+                    LowerBound(display_y, surface_y), 
+                    UpperBound(display_y, screen_y, surface_y) + 1
                 )
             case Alignment.Facing.UP:
                 range_x = range(
-                    LowerBound(reference_x, surface_x), 
-                    UpperBound(reference_x, screen_x, surface_x) + 1
+                    LowerBound(display_x, surface_x), 
+                    UpperBound(display_x, screen_x, surface_x) + 1
                 )
-                range_y = range(LowerBound(reference_y, surface_y), 1)
+                range_y = range(LowerBound(display_y, surface_y), 1)
             case Alignment.Facing.DOWN:
                 range_x = range(
-                    LowerBound(reference_x, surface_x), 
-                    UpperBound(reference_x, screen_x, surface_x) + 1
+                    LowerBound(display_x, surface_x), 
+                    UpperBound(display_x, screen_x, surface_x) + 1
                 )
-                range_y = range(0, UpperBound(reference_y, screen_y, surface_y) + 1)
+                range_y = range(0, UpperBound(display_y, screen_y, surface_y) + 1)
             case Alignment.Facing.ALL:
                 range_x = range(
-                    LowerBound(reference_x, surface_x), 
-                    UpperBound(reference_x, screen_x, surface_x) + 1
+                    LowerBound(display_x, surface_x), 
+                    UpperBound(display_x, screen_x, surface_x) + 1
                 )
                 range_y = range(
-                    LowerBound(reference_y, surface_y), 
-                    UpperBound(reference_y, screen_y, surface_y) + 1
+                    LowerBound(display_y, surface_y), 
+                    UpperBound(display_y, screen_y, surface_y) + 1
                 )
 
         for i, j in _product(range_x, range_y):
-            yield reference + Vector(i * surface_x, j * surface_y)
+            yield display + Vector(i * surface_x, j * surface_y)
     
 
 class Displayable:
@@ -262,7 +272,7 @@ class Displayable:
     def __topleft(self, screen: _Surface, display_coordinate: Vector) -> Vector:
         return self.alignment(screen, self.surface) + display_coordinate
 
-    def display(self, screen: _Surface, display_coordinate: Vector) -> None:
+    def display(self, screen: _Surface, offset: Vector) -> None:
         '''
         Display the object on the screen.
 
@@ -270,17 +280,20 @@ class Displayable:
         ----------
         screen: :class:`pygame.surface`
             The main screen which the surface is displayed on.
-        display_coordinate: :class:`Vector`
-            The display coordinate relative to the reference point.
+        offset: :class:`Vector`
+            The offset of the display relative to the reference point.
         '''
         if not Alignment.Flag.FILL in self.alignment.flags:
-            screen.blit(self.surface, self.__topleft(screen, display_coordinate).inttuple)
+            screen.blit(self.surface, self.alignment(screen, self.surface, offset).inttuple)
             return
-        for reference in self.alignment.repeat(screen, self.surface):
-            screen.blit(self.surface, (reference + display_coordinate).inttuple)
+        for display in self.alignment.repeat(screen, self.surface, offset):
+            screen.blit(self.surface, display.inttuple)
 
     def contains(
-            self, screen: _Surface, display_coordinate: Vector, input_coordinate: Vector
+            self, 
+            screen: _Surface, 
+            offset: Vector, 
+            input_coordinate: Vector
         ) -> bool:
         '''
         Check whether the player input hits inside the surface.
@@ -289,8 +302,8 @@ class Displayable:
         ----------
         screen: :class:`pygame.surface`
             The main screen which the surface is displayed on.
-        display_coordinate: :class:`Vector`
-            The display coordinate relative to the reference point.
+        offset: :class:`Vector`
+            The offset of the display relative to the reference point.
         input_coordinate: :class:`Vector`
             The coordinate of the player input.
 
@@ -299,7 +312,7 @@ class Displayable:
         `bool`
             Whether the player input hits inside the surface.
         '''
-        top_left = self.__topleft(screen, display_coordinate)
+        top_left = self.alignment(screen, self.surface, offset)
         size_x, size_y = self.surface.get_size()
         return top_left.x <= input_coordinate.x < top_left.x + size_x \
             and top_left.y <= input_coordinate.y < top_left.y + size_y
@@ -313,16 +326,16 @@ class StaticDisplayable(Displayable):
     ----------
     surface: :class:`pygame.Surface`
         The displaying surface of the object.
-    display_coordinate: :class:`Vector`
-        The display coordinate relative to the reference point.
+    offset: :class:`Vector`
+        The offset of the display relative to the reference point.
     alignment: :class:`Alignment`
         The alignment mode of the object.
     '''
     def __init__(
-        self, surface: _Surface, display_coordinate: Vector, alignment: Alignment
+        self, surface: _Surface, offset: Vector, alignment: Alignment
     ) -> None:
         super().__init__(surface, alignment)
-        self.display_coordinate = display_coordinate
+        self.offset = offset
 
     def display(self, screen: _Surface) -> None:
         '''
@@ -333,7 +346,7 @@ class StaticDisplayable(Displayable):
         screen: :class:`pygame.surface`
             The main screen which the surface is displayed on.
         '''
-        return super().display(screen, self.display_coordinate)
+        return super().display(screen, self.offset)
 
     def contains(self, screen: _Surface, input_coordinate: Vector) -> bool:
         '''
@@ -351,7 +364,7 @@ class StaticDisplayable(Displayable):
         `bool`
             Whether the player input hits inside the surface.
         '''
-        return super().contains(screen, self.display_coordinate, input_coordinate)
+        return super().contains(screen, self.offset, input_coordinate)
 
 
 class DisplayableText(StaticDisplayable):
@@ -362,8 +375,8 @@ class DisplayableText(StaticDisplayable):
     ----------
     surface: :class:`pygame.Surface`
         The displaying surface of the object.
-    display_coordinate: :class:`Vector`
-        The display coordinate relative to the reference point.
+    offset: :class:`Vector`
+        The offset of the display relative to the reference point.
     alignment: :class:`Alignment`
         The alignment mode of the object.
 
@@ -375,23 +388,32 @@ class DisplayableText(StaticDisplayable):
         The content of the text.
     color: :class:`ColorType`
         The color of the text.
+    background: Union[:class:`ColorType`, ``None``]
+        The background color of the text. 
+    alpha: :class:`int`
+        The alpha value of the surface.
     '''
     def __init__(
             self, 
-            display_coordinate: Vector, 
+            offset: Vector, 
             alignment: Alignment, 
             font: _Font, 
             text: str = "", 
-            color: ColorType = _COLOR_BLACK
+            color: ColorType = _COLOR_BLACK, 
+            background: ColorType | None = None, 
+            alpha: int = 255
     ) -> None:
         self.__font = font
         self.__text = text
         self.__color = color
+        self.__background = background
+        self.__alpha = alpha
         self.__update_surface()
-        super().__init__(self.surface, display_coordinate, alignment)
+        super().__init__(self.surface, offset, alignment)
 
     def __update_surface(self) -> None:
-        self.surface = self.__font.render(self.__text, False, self.__color)
+        self.surface = self.__font.render(self.__text, False, self.__color, self.__background)
+        self.surface.set_alpha(self.__alpha)
 
     @property
     def font(self) -> _Font:
@@ -420,6 +442,24 @@ class DisplayableText(StaticDisplayable):
         self.__color = __c
         self.__update_surface()
 
+    @property
+    def background(self) -> ColorType | None:
+        return self.__background
+    
+    @background.setter
+    def background(self, __c: ColorType | None) -> None:
+        self.__background = __c
+        self.__update_surface()
+
+    @property
+    def alpha(self) -> int:
+        return self.__alpha
+    
+    @alpha.setter
+    def alpha(self, __a: int) -> None:
+        self.__alpha = __a
+        self.__update_surface()
+
 
 class DisplayableBall(Displayable):
     '''
@@ -436,7 +476,7 @@ class DisplayableBall(Displayable):
         self.base_surface = self.surface = base_surface
         self.alignment = alignment
 
-    def display(self, screen: _Surface, display_coordinate: Vector, angle: NumberType) -> None:
+    def display(self, screen: _Surface, offset: Vector, angle: NumberType) -> None:
         '''
         Display the object on the screen.
 
@@ -444,10 +484,10 @@ class DisplayableBall(Displayable):
         ----------
         screen: :class:`pygame.surface`
             The main screen which the surface is displayed on.
-        display_coordinate: :class:`Vector`
-            The display coordinate relative to the reference point.
+        offset: :class:`Vector`
+            The offset of the display relative to the reference point.
         angle: :class:`NumberType`
             The rotation angle of the ball, in unit of degree.
         '''
         self.surface = rotate(self.base_surface, -angle)
-        return super().display(screen, display_coordinate)
+        return super().display(screen, offset)

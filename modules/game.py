@@ -1,17 +1,25 @@
-from physics import PhysicsBall, PhysicsGround, PhysicsSlab, PhysicsWall
+from physics import PhysicsBall, PhysicsGround, PhysicsSlab, PhysicsWall, PhysicsObject
 from vector import _isNumber, NumberType, Vector
 from collections import deque as _deque
 from functools import reduce as _reduce
 from json import load as _load
-from typing import NamedTuple as _NamedTuple, Callable as _Callable, Iterator as _Iterator
+from typing import (
+    NamedTuple as _NamedTuple, 
+    Callable as _Callable, 
+    Iterator as _Iterator, 
+    Generator as _Generator
+)
 
 _BALL_RADIUS = 20
-_GROUND_Y = -_BALL_RADIUS
 _SLAB_GAP = 100
 _DEFAULT_SCREEN_SIZE = 1120, 630
-_TRACE_HEIGHT = 300
-_LOWER_BALL_BOUNDARY = -130 - _BALL_RADIUS
-_UPPER_SLAB_BOUNDARY, _LOWER_SLAB_BOUNDARY = 600, -130 - _SLAB_GAP
+_TRACE_HEIGHT = 250
+_ORIGINAL_TOP_HEIGHT = 500
+
+_GROUND_Y = -_BALL_RADIUS
+_GAMEOVER_HEIGHT = _ORIGINAL_TOP_HEIGHT - _DEFAULT_SCREEN_SIZE[1] - _BALL_RADIUS
+_UPPER_SLAB_BOUNDARY = _ORIGINAL_TOP_HEIGHT + _SLAB_GAP
+_LOWER_SLAB_BOUNDARY = _ORIGINAL_TOP_HEIGHT - _DEFAULT_SCREEN_SIZE[1] - _SLAB_GAP
 
 def get_level(height: NumberType) -> int:
     return int(height) // _SLAB_GAP + 1
@@ -61,6 +69,9 @@ class LevelGenerator:
         self.__length = length
 
     def generate(self) -> _Level | None:
+        '''
+        To be documented
+        '''
         if self.__current < self.__length:
             level = self.__levels[self.__current]
             self.__current += 1
@@ -70,6 +81,17 @@ class LevelGenerator:
             self.__current = self.__repeat_from + 1
             return level
         return None
+    
+    def copy(self) -> "LevelGenerator":
+        '''
+        To be documented
+        '''
+        level_generator = super().__new__(type(self))
+        level_generator.__levels = self.__levels
+        level_generator.__current = 0
+        level_generator.__length = self.__length
+        level_generator.__repeat_from = self.__repeat_from
+        return level_generator
             
 
 class SlabLevel:
@@ -79,6 +101,7 @@ class SlabLevel:
     level: int
     __slabs: _deque[PhysicsSlab]
     __recycle: _Callable[[], None]
+
     def __init__(self, level_generator: LevelGenerator) -> None:
         level = level_generator.generate()
         self.__slabs = _deque()
@@ -161,21 +184,36 @@ class Game:
             return
         self.ball.tick(
             dt, 
-            [self.ground, self.wall_left, self.wall_right] + \
-                _reduce(lambda x, y: x + list(y), self.slab_levels, []),
+            self.objects,
             bounce
         )
-        if (pos_y := self.ball.position.y) + self.ball.radius <= _LOWER_BALL_BOUNDARY:
+        if (pos_y := self.ball.position.y) + self.ball.radius \
+            <= _GAMEOVER_HEIGHT + self.reference:
             self.gameover = True
             return
         if pos_y > self.max_height:
             self.max_height = pos_y
         if (reference := pos_y - _TRACE_HEIGHT) > self.reference:
             self.reference = reference
-            if self.slab_levels[0].height <= reference + _LOWER_SLAB_BOUNDARY:
+            while self.slab_levels \
+                and self.slab_levels[0].height <= reference + _LOWER_SLAB_BOUNDARY:
                 self.slab_levels.popleft()
             while SlabLevel.GENERATE_HEIGHT <= reference + _UPPER_SLAB_BOUNDARY:
                 self.slab_levels.append(SlabLevel(self.__level_generator))
         
     def position_map(self, position: Vector) -> Vector:
         return Vector(position.x, 500 + self.reference - position.y)
+    
+    @property
+    def slabs(self) -> _Generator[PhysicsSlab, None, None]:
+        for slab_level in self.slab_levels:
+            for slab in slab_level:
+                yield slab
+
+    @property
+    def objects(self) -> _Generator[PhysicsObject, None, None]:
+        yield self.ground
+        yield self.wall_left
+        yield self.wall_right
+        for slab in self.slabs:
+            yield slab

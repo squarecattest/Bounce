@@ -6,8 +6,9 @@ from math import pi as _pi
 
 _RAD_INV = 180 / _pi
 '------------------Constant Settings------------------'
-_GRAVITY = Vector(0, -1960)
-_BOUNCE_VELOCITY = 720
+_BALL_RADIUS = 20
+_GRAVITY = Vector(0, -1280)
+_BOUNCE_VELOCITY = 580
 _WALL_REFLECT_VELOCITY_CONSTANT = 1.25
 _WALL_REFLECT_ALLOWED_DISTANCE = 0 #1 ?
 _MAX_BOUNCABLE_DISTANCE = 20
@@ -217,6 +218,14 @@ class PhysicsGround(PhysicsObject):
         (Read-only) The y coordinate of the surface.
         '''
         return self.__y_top
+    
+    @property
+    def position(self) -> Vector:
+        '''
+        (Read-only) The position vector of the center of the surface of the ground. Vector 
+        components can be changed by calling vector setters.
+        '''
+        return Vector(560, -20)
     
     @property
     def velocity(self) -> Vector:
@@ -598,7 +607,7 @@ class PhysicsBall(PhysicsObject):
         elif wall.facing == PhysicsWall.FACING_LEFT:
             self.__v.x = min(
                 self.__v.x,
-                -_wall_reflect_velocity(wall.x_side - self.__pos.x - self.__radius)
+                -_wall_reflect_velocity(self.__pos.x - self.__radius - wall.x_side)
             )
 
     def remove_ground_stuck(self, ground: PhysicsGround) -> None:
@@ -782,12 +791,15 @@ class PhysicsBall(PhysicsObject):
         (Read-only) The angular frequency of the ball, in unit of radian/second.
         '''
         return self.__w
+    
     @property
-    def radius(self) -> LengthType:
+    def ground_text(self) -> str:
         '''
-        (Read-only) The radius of the ball.
+        (Read-only) The text of the ground of the ball.
         '''
-        return self.__radius
+        if self.__ground is None:
+            return "None"
+        return type(self.__ground).__name__.removeprefix("Physics")
     
     @property
     def bounceable(self) -> bool:
@@ -795,6 +807,13 @@ class PhysicsBall(PhysicsObject):
         (Read-only) The bounceability of the ball.
         '''
         return self.__bounceable
+    
+    @property
+    def radius(self) -> LengthType:
+        '''
+        (Read-only) The radius of the ball.
+        '''
+        return self.__radius
     
     @property
     def debug_msgs(self) -> tuple[str]:
