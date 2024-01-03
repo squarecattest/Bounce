@@ -25,7 +25,7 @@ class Translatable:
         '''
         To be documented
         '''
-        with open(filepath, "r") as file:
+        with open(filepath, "r", encoding="utf-8") as file:
             translations = _jsonload(file)
         if not isinstance(translations, dict):
             raise cls.__error
