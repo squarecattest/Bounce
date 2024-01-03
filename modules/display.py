@@ -2,6 +2,8 @@ from pygame import Surface as _Surface, Color as _Color
 from pygame.font import Font as _Font
 from pygame.transform import rotate
 from vector import Vector, NumberType
+from language import Language, TranslateName, Translatable
+from resources import Color
 from enum import Enum as _Enum, Flag as _Flag, auto as _auto
 from itertools import product as _product
 from functools import reduce as _reduce
@@ -20,19 +22,6 @@ class Alignment:
     the screen and the surface given by the alignment modes will be aligned, which gives the 
     unique reference point of a displayable object.
     '''
-    class Flag(_Flag):
-        NONE = 0
-        FILL = _auto()
-        '''
-        Repeat the surface to fill the specified region. If the alignment mode is a side, the 
-        facing direction will be filled. (For example, if the mode is ``LEFT``, the right part 
-        of the screen will be filled.) Otherwise, the whole screen will be filled.
-        '''
-        REFERENCED = _auto()
-        '''
-        Place the surface with an offset.
-        '''
-
     class Mode(_Enum):
         DEFAULT = _auto()
         '''
@@ -57,6 +46,19 @@ class Alignment:
         BOTTOM = _auto()
         '''
         The surface will be aligned at the center of the bottom side.
+        '''
+
+    class Flag(_Flag):
+        NONE = 0
+        FILL = _auto()
+        '''
+        Repeat the surface to fill the specified region. If the alignment mode is a side, the 
+        facing direction will be filled. (For example, if the mode is ``LEFT``, the right part 
+        of the screen will be filled.) Otherwise, the whole screen will be filled.
+        '''
+        REFERENCED = _auto()
+        '''
+        Place the surface with an offset.
         '''
 
     class Facing(_Enum):
@@ -459,8 +461,74 @@ class DisplayableText(StaticDisplayable):
     def alpha(self, __a: int) -> None:
         self.__alpha = __a
         self.__update_surface()
+ 
 
+class DisplayableTranslatable(DisplayableText):
+    
+    '''
+    The class representing a static displayable translated text.
 
+    Attributes
+    ----------
+    surface: :class:`pygame.Surface`
+        The displaying surface of the object.
+    offset: :class:`Vector`
+        The offset of the display relative to the reference point.
+    alignment: :class:`Alignment`
+        The alignment mode of the object.
+
+    Properties
+    ----------
+    font: :class:`pygame.font.Font`
+        The font of the text.
+    text: :class:`str`
+        The content of the text.
+    color: :class:`ColorType`
+        The color of the text.
+    background: Union[:class:`ColorType`, ``None``]
+        The background color of the text. 
+    alpha: :class:`int`
+        The alpha value of the surface.
+    '''
+    def __init__(
+            self, 
+            offset: Vector, 
+            alignment: Alignment, 
+            font: _Font, 
+            translation: TranslateName, 
+            language: Language, 
+            color: ColorType = Color.BLACK, 
+            background: ColorType | None = None, 
+            alpha: int = 255
+    ) -> None:
+        self.__translatable = Translatable(translation, language)
+        super().__init__(
+            offset, 
+            alignment, 
+            font, 
+            self.__translatable.get(language), 
+            color, 
+            background, 
+            alpha
+        )
+
+    def display(self, screen: _Surface, language: Language = None) -> None:
+        if language == self.__translatable.language or language is None:
+            return super().display(screen)
+        super().__text = self.__translatable.get(language)
+        super().__update_surface()
+        super().display(screen)
+
+    @property
+    def language(self) -> Language:
+        return self.__translatable.language
+    
+    @language.setter
+    def language(self, language: Language) -> None:
+        super().__text = self.__translatable.get(language)
+        super().__update_surface()
+
+ 
 class DisplayableBall(Displayable):
     '''
     The class representing a displayable object. 
@@ -472,9 +540,21 @@ class DisplayableBall(Displayable):
     alignment: :class:`Alignment`
         The alignment mode of the object.
     '''
-    def __init__(self, base_surface: _Surface, alignment: Alignment) -> None:
-        self.base_surface = self.surface = base_surface
+    def __init__(self, frame: _Surface, base_surface: _Surface, alignment: Alignment) -> None:
+        self.frame = frame
+        self.base_surface = base_surface
+        self.surface = self.frame.copy()
         self.alignment = alignment
+        self.__blit_alignment = Alignment(Alignment.Mode.CENTERED, Alignment.Mode.CENTERED)
+
+    def __blit(self, angle: NumberType) -> None:
+        self.surface = self.frame.copy()
+        StaticDisplayable(
+            rotate(self.base_surface, -angle), 
+            Vector.zero, 
+            self.__blit_alignment
+        ).display(self.surface)
+        
 
     def display(self, screen: _Surface, offset: Vector, angle: NumberType) -> None:
         '''
@@ -489,5 +569,5 @@ class DisplayableBall(Displayable):
         angle: :class:`NumberType`
             The rotation angle of the ball, in unit of degree.
         '''
-        self.surface = rotate(self.base_surface, -angle)
+        self.__blit(angle)
         return super().display(screen, offset)

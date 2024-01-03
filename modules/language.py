@@ -8,7 +8,12 @@ class Language(_Enum):
 
 class TranslateName(_StrEnum):
     name = _auto()
-    game_starttext = _auto()
+    game_start_text = _auto()
+    game_scoreboard_record_height = _auto()
+    game_scoreboard_height = _auto()
+    game_scoreboard_level = _auto()
+    game_scoreboard_time = _auto()
+    game_restart_text = _auto()
 
 class Translatable:
     '''

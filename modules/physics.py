@@ -2,25 +2,27 @@ from vector import *
 from abc import ABC as _ABC, abstractmethod as _abstractmethod
 from typing import Literal as _Literal, Iterable as _Iterable
 from itertools import product as _product
+from random import triangular as _triangular
 from math import pi as _pi
 
 _RAD_INV = 180 / _pi
 '------------------Constant Settings------------------'
 _BALL_RADIUS = 20
-_GRAVITY = Vector(0, -1280)
-_BOUNCE_VELOCITY = 580
+_GRAVITY = Vector(0, -960)
+_BOUNCE_VELOCITY = 400
+_BOUNCE_VELOCITY_PARAS = (480, 525)
 _WALL_REFLECT_VELOCITY_CONSTANT = 1.25
 _WALL_REFLECT_ALLOWED_DISTANCE = 0 #1 ?
 _MAX_BOUNCABLE_DISTANCE = 20
 _SLIDING_MULTIPLIER = 3
 
 ## Tick-based Constants
-_COLLISION_ALPHA, _COLLISION_BETA = 0.6, 20
+_COLLISION_ALPHA, _COLLISION_BETA = 0.6, 15
 _SLIDING_ALPHA, _SLIDING_BETA = 0.92, 0.01
 _ROLLING_ALPHA, _ROLLING_BETA = 0.993, 0.1
 ## Time-based Constants
 _SLIDING_GAMMA, _SLIDING_DELTA = 15, 0.139
-_ROLLING_GAMMA, _ROLLING_DELTA = 3.5, 0.2
+_ROLLING_GAMMA, _ROLLING_DELTA = 2.5, 0.1
 '-----------------------------------------------------'
 
 def _sign(number: NumberType) -> _Literal[-1, 0, 1]:
@@ -111,6 +113,9 @@ def _time_based_linear_contraction(
     if mag < 0:
         return center.copy()
     return center + unit * mag
+
+def _bounce_velocity() -> Vector:
+    return Vector(0, _triangular(*_BOUNCE_VELOCITY_PARAS))
 
 def _wall_reflect_velocity(distance: NumberType) -> NumberType:
     '''
@@ -334,6 +339,8 @@ class PhysicsSlab(PhysicsObject):
         self.__pos += self.__v * dt
 
     def check_collision(self, ball: "PhysicsBall") -> Vector | None:
+        if abs(ball.position.y - self.__pos.y) > ball.radius + self.__size[1] // 2:
+            return None
         x_range = self.__pos.x - self.__size[0] // 2, self.__pos.x + self.__size[0] // 2
         y_range = self.__pos.y - self.__size[1] // 2, self.__pos.y + self.__size[1] // 2
 
@@ -485,7 +492,7 @@ class PhysicsBall(PhysicsObject):
         '''
         if not self.__bounceable:
             return
-        self.__v.y = min(_BOUNCE_VELOCITY, self.__v.y + _BOUNCE_VELOCITY)
+        self.__v.y = min(self.__v.y, 0) + _triangular(*_BOUNCE_VELOCITY_PARAS)
         self.set_onground(False)
         self.set_bounceability(False)
 
@@ -774,16 +781,16 @@ class PhysicsBall(PhysicsObject):
     @property
     def rad_angle(self) -> NumberType:
         '''
-        (Read-only) The rotated angle of the ball, in unit of radian.
+        (Read-only) The reduced rotated angle of the ball, in unit of radian.
         '''
-        return self.__angle
+        return self.__angle % (2 * _pi)
     
     @property
     def deg_angle(self) -> NumberType:
         '''
-        (Read-only) The rotated angle of the ball, in unit of degree.
+        (Read-only) The reduced rotated angle of the ball, in unit of degree.
         '''
-        return _to_degree(self.__angle)
+        return _to_degree(self.__angle) % 360
     
     @property
     def angular_frequency(self) -> NumberType:

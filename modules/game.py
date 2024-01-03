@@ -24,6 +24,9 @@ _LOWER_SLAB_BOUNDARY = _ORIGINAL_TOP_HEIGHT - _DEFAULT_SCREEN_SIZE[1] - _SLAB_GA
 def get_level(height: NumberType) -> int:
     return int(height) // _SLAB_GAP + 1
 
+def get_height(level: int) -> int:
+    return level * _SLAB_GAP - _SLAB_GAP // 2 - _BALL_RADIUS
+
 class _Level(_NamedTuple):
     length: int
     width: int
@@ -164,7 +167,7 @@ class Game:
     wall_left: PhysicsWall
     wall_right: PhysicsWall
     slab_levels: _deque[SlabLevel]
-    def __init__(self, level_filepath: str):
+    def __init__(self, level_filepath: str) -> None:
         self.__level_generator = LevelGenerator(level_filepath)
         self.reference = 0
         self.max_height = 0
@@ -200,9 +203,19 @@ class Game:
                 self.slab_levels.popleft()
             while SlabLevel.GENERATE_HEIGHT <= reference + _UPPER_SLAB_BOUNDARY:
                 self.slab_levels.append(SlabLevel(self.__level_generator))
+
+    def restart(self) -> None:
+        self.__level_generator = self.__level_generator.copy()
+        self.reference = 0
+        self.max_height = 0
+        self.gameover = False
+        self.ball = PhysicsBall((_DEFAULT_SCREEN_SIZE[0] // 2, 0), _BALL_RADIUS)
+        self.slab_levels = _deque()
+        while SlabLevel.GENERATE_HEIGHT <= _UPPER_SLAB_BOUNDARY:
+            self.slab_levels.append(SlabLevel(self.__level_generator))
         
     def position_map(self, position: Vector) -> Vector:
-        return Vector(position.x, 500 + self.reference - position.y)
+        return Vector(position.x, _ORIGINAL_TOP_HEIGHT + self.reference - position.y)
     
     @property
     def slabs(self) -> _Generator[PhysicsSlab, None, None]:

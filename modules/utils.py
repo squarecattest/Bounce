@@ -1,3 +1,4 @@
+from collections import deque as _deque
 from time import time as _time
 
 class Timer:
@@ -29,6 +30,11 @@ class Timer:
         self.__stop = True
         self.__pause = False
 
+    def restart(self) -> None:
+        self.__stop = False
+        self.__pause = False
+        self.__start_time = _time()
+
     def read(self) -> float:
         if self.__stop or self.__pause:
             return self.__total_time
@@ -41,3 +47,23 @@ class Timer:
             self.__total_time += seconds
         else:
             self.__start_time -= seconds
+
+class FPSCounter:
+    def __init__(self, counts: int, start: bool = True) -> None:
+        self.__counter = _deque(maxlen=counts)
+        self.__timer = Timer(start=start)
+        self.__counts = counts
+
+    def tick(self) -> None:
+        t = self.__timer.read()
+        if not self.__counter:
+            self.__counter.extend((t, ) * self.__counts)
+        else:
+            self.__counter.append(t)
+        self.__timer.restart()
+
+    def read(self) -> int:
+        return int(self.__counts / sum(self.__counter))
+    
+def time_string(second: float) -> str:
+    return f"{int(second // 60):02d}:{int(second % 60):02d}"
