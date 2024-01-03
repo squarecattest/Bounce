@@ -33,7 +33,7 @@ class Translatable:
         English_dict = cls.__languages.get(Language.English, {})
         cls.__languages[language] = language_dict
         for name in TranslateName:
-            if isinstance(translation := translations.get("name"), str):
+            if isinstance(translation := translations.get(name), str):
                 language_dict[name] = translation
             elif (translation := English_dict.get(name)) is not None:
                 language_dict[name] = translation
