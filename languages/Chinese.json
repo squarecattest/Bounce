@@ -1,0 +1,9 @@
+{
+    "name": "中文", 
+    "game_start_text": "按空白鍵來開始", 
+    "game_restart_text": "按空白鍵來重新開始", 
+    "game_scoreboard_record_height": "最高紀錄", 
+    "game_scoreboard_height": "高度", 
+    "game_scoreboard_level": "關卡", 
+    "game_scoreboard_time": "遊戲時間"
+}

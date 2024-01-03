@@ -1,0 +1,9 @@
+{
+    "name": "日本語", 
+    "game_start_text": "スペースキーを押してスタート", 
+    "game_restart_text": "スペースキーを押してリスタート", 
+    "game_scoreboard_record_height": "最高記録", 
+    "game_scoreboard_height": "高さ", 
+    "game_scoreboard_level": "レベル", 
+    "game_scoreboard_time": "タイム"
+}

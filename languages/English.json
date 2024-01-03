@@ -1,0 +1,9 @@
+{
+    "name": "English", 
+    "game_start_text": "Press SPACE to start", 
+    "game_restart_text": "Press SPACE to restart", 
+    "game_scoreboard_record_height": "Record Height", 
+    "game_scoreboard_height": "Height", 
+    "game_scoreboard_level": "Level", 
+    "game_scoreboard_time": "Time"
+}
