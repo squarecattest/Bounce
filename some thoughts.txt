@@ -1,3 +1,0 @@
-the only action is "jump"
-a ball climbing up
-stepped floor moving left or right
