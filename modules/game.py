@@ -85,16 +85,11 @@ class LevelGenerator:
             return level
         return None
     
-    def copy(self) -> "LevelGenerator":
+    def reload(self) -> None:
         '''
         To be documented
         '''
-        level_generator = super().__new__(type(self))
-        level_generator.__levels = self.__levels
-        level_generator.__current = 0
-        level_generator.__length = self.__length
-        level_generator.__repeat_from = self.__repeat_from
-        return level_generator
+        self.__current = 0
             
 
 class SlabLevel:
@@ -156,6 +151,11 @@ class SlabLevel:
         for slab in self.__slabs:
             slab.tick(dt)
         self.__recycle()
+
+    @classmethod
+    def reload(cls) -> None:
+        cls.GENERATE_HEIGHT = _GROUND_Y + _SLAB_GAP
+        cls.LEVEL = 2
         
 
 class Game:
@@ -205,7 +205,8 @@ class Game:
                 self.slab_levels.append(SlabLevel(self.__level_generator))
 
     def restart(self) -> None:
-        self.__level_generator = self.__level_generator.copy()
+        self.__level_generator.reload()
+        SlabLevel.reload()
         self.reference = 0
         self.max_height = 0
         self.gameover = False

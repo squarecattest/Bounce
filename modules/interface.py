@@ -1,6 +1,7 @@
 import pygame
 from pygame import Surface as _Surface
-from pygame.event import Event
+from pygame.event import Event as _Event
+from pygame import draw as _draw
 from game import Game, get_level, get_height
 from display import *
 from resources import *
@@ -9,44 +10,53 @@ from language import Language
 from utils import Timer, time_string
 from collections import deque as _deque
 from dataclasses import dataclass
-from enum import Enum as _Enum, auto as _auto
+from enum import Enum as _Enum, Flag as _Flag, auto as _auto
 from typing import NamedTuple as _NamedTuple
 
+_DEFAULT_SCREEN_SIZE = 1120, 630
+_DEFAULT_SCREEN_DIAGONAL = (_DEFAULT_SCREEN_SIZE[0]**2 + _DEFAULT_SCREEN_SIZE[1]**2) ** (1/2)
 _SCREEN_OFFSET = Vector(-560, -315)
 _INGAME_FPS = 360
 _DT = 1 / _INGAME_FPS
+_RESTART_TEXT_ALPHA = 180
 _DEBUG_TEXT_SEP = 20
 _DEBUG_TEXT_ALPHA = 150
 _DEBUG_TEXT_LASTING_TIME = 0.5
+_FADE_OUT_ALPHA_RATE = 5
+_RESTART_SCENE_RADIUS_RATE = 1.2
 
 class GameInterface:
     class GameEvent(_Enum):
         EMPTY = _auto()
-        START = BOUNCE = _auto()
+        START = SPACE = _auto()
         GAMEOVER = _auto()
         RESTART = _auto()
+        RELOAD = _auto()
+        RELOADED = _auto()
         DEBUG = _auto()
         QUIT = _auto()
 
-    @dataclass
-    class GameStatus:
-        started: bool
-        starting: bool
-        gameover: bool
-        restarting: bool
+    class GameStatus(_Flag):
+        LOADED = _auto()
+        STARTING = _auto()
+        STARTED = _auto()
+        GAMEOVER = _auto()
+        RESTARTING = _auto()
+        RELOADING = _auto()
+
+    GE = GameEvent
+    GS = GameStatus
 
     class DebugMsgTimer(_NamedTuple):
         msg: str
         timer: Timer
 
-    def __restart(self) -> None:
-        pass
     def __init__(self, level_filepath: str, language: Language) -> None:
         self.game = Game(level_filepath)
         self.language = language
         self.ingame_timer = Timer()
         self.tick_timer = Timer(start=True)
-        self.status = GI.GameStatus(False, False, False, False)
+        self.status = GI.GS.LOADED
         self.bounce = False
         self.debugging = False
         self.record_height = 0
@@ -101,6 +111,35 @@ class GameInterface:
             language, 
             Color.Game.START_TEXT
         )
+        self.gameover_display = DisplayableTranslatable(
+            Vector.zero, 
+            Alignment(
+                Alignment.Mode.CENTERED, 
+                Alignment.Mode.CENTERED
+            ), 
+            Font.Game.RESTART_TEXT, 
+            TranslateName.game_restart_text, 
+            self.language, 
+            Color.Game.RESTART_TEXT
+        )
+        self.blackscene_display = StaticDisplayable(
+            _Surface(_DEFAULT_SCREEN_SIZE), 
+            Vector.zero, 
+            Alignment(
+                Alignment.Mode.CENTERED, 
+                Alignment.Mode.CENTERED
+            )
+        )
+        self.blackscene_display.surface.fill(Color.BLACK)
+        self.blackscene_alpha = 0
+        self.blackscene_display.surface.set_colorkey(Color.Game.RESTART_COLORKEY)
+
+    def __restart(self) -> None:
+        self.game.restart()
+        self.ingame_timer.stop()
+        self.tick_timer.restart()
+        self.height = 0
+        self.debug_msgs.clear()
 
     def tick(self) -> None:
         ticks = int(_INGAME_FPS * self.tick_timer.read())
@@ -110,43 +149,53 @@ class GameInterface:
         for _ in range(ticks - 1):
             self.game.tick(_DT, False)
         self.height = max(self.height, self.game.ball.pos_y)
-        if not self.status.gameover and self.game.gameover:
-            self.__handle_event(GI.GameEvent.GAMEOVER)
+        if not GI.GameStatus.GAMEOVER in self.status and self.game.gameover:
+            self.__handle_event(GI.GE.GAMEOVER)
         self.__read_debug_msg()
 
-    def add_event(self, event: Event) -> None:
+    def add_event(self, event: _Event) -> None:
         self.__handle_event(self.__event_converter(event))
 
     def __handle_event(self, event: GameEvent) -> None:
         match event:
-            case GI.GameEvent.BOUNCE if self.status.gameover:
+            case GI.GE.SPACE if GI.GS.GAMEOVER in self.status \
+                and not GI.GS.RESTARTING in self.status:
                 if self.gameover_timer.read() > 2:
-                    self.__handle_event(GI.GameEvent.RESTART)
-            case GI.GameEvent.BOUNCE:
-                if not self.status.started:
-                    self.status.started = self.status.starting = True
-                    self.ingame_timer.start()
+                    self.__handle_event(GI.GE.RESTART)
+            case GI.GE.SPACE if (GI.GS.RELOADING | GI.GS.LOADED) & self.status:
+                self.ingame_timer.start()
+                self.status |= GI.GS.STARTING | GI.GS.STARTED
                 self.bounce = True
-            case GI.GameEvent.DEBUG:
+            case GI.GE.SPACE if (GI.GS.STARTING | GI.GS.STARTED) & self.status:
+                self.bounce = True
+            case GI.GE.DEBUG:
                 self.debugging = not self.debugging
-            case GI.GameEvent.GAMEOVER:
-                self.status.gameover = True
+            case GI.GE.GAMEOVER:
+                self.status = GI.GS.GAMEOVER
                 self.ingame_timer.pause()
                 self.gameover_timer = Timer(start=True)
-            case GI.GameEvent.RESTART:
-                pass
+            case GI.GE.RESTART:
+                self.blackscene_display.surface.fill(Color.BLACK)
+                self.blackscene_alpha = 0
+                self.status |= GI.GS.RESTARTING
+            case GI.GE.RELOAD:
+                self.__restart()
+                self.restart_scene_radius = 1
+                self.status = GI.GS.RELOADING
+            case GI.GE.RELOADED:
+                self.status |= GI.GS.LOADED
 
-    def __event_converter(self, event: Event) -> GameEvent:
+    def __event_converter(self, event: _Event) -> GameEvent:
         match event.type:
             case pygame.KEYDOWN:
                 match event.__dict__.get("key"):
                     case pygame.K_SPACE:
-                        return GI.GameEvent.BOUNCE
+                        return GI.GE.SPACE
                     case pygame.K_d:
-                        return GI.GameEvent.DEBUG
+                        return GI.GE.DEBUG
             case pygame.QUIT:
-                return GI.GameEvent.QUIT
-        return GI.GameEvent.EMPTY
+                return GI.GE.QUIT
+        return GI.GE.EMPTY
     
     def __read_debug_msg(self) -> None:
         self.debug_msgs.extend(
@@ -171,19 +220,23 @@ class GameInterface:
             self.game.position_map(self.game.ball.position), 
             self.game.ball.deg_angle
         )
-        if not self.status.started or self.status.starting:
-            self.__starting_display(screen)
-        if self.status.gameover:
-            self.__gameover_display(screen)
-        self.__scoreboard_display(screen)
         if self.debugging:
             self.__debug_display(screen, set_FPS, real_FPS)
+        if (GI.GS.RELOADING | GI.GS.LOADED | GI.GS.STARTING) & self.status:
+            self.__starting_display(screen)
+        if GI.GS.GAMEOVER in self.status:
+            self.__gameover_display(screen)
+        self.__scoreboard_display(screen)
+        if GI.GS.RESTARTING in self.status:
+            self.__restarting_display(screen)
+        if GI.GS.RELOADING in self.status:
+            self.__reloading_display(screen)
 
     def __starting_display(self, screen: _Surface) -> None:
         self.start_display.offset = \
             Vector(560, 1000 * (self.ingame_timer.read() - 0.1)**2 + 565)
         if self.start_display.offset.y > 650:
-            self.status.starting = False
+            self.status &= ~GI.GS.STARTING
         self.start_display.display(screen, self.language)
 
     def __level_display(self, screen: _Surface) -> None:
@@ -316,19 +369,61 @@ class GameInterface:
             ).display(screen)
 
     def __gameover_display(self, screen: _Surface) -> None:
-        if (t := self.gameover_timer.read()) > 2 and int(2 * t) % 2 == 0:
-            print(t)
-            DisplayableTranslatable(
-                Vector.zero, 
+        if (t := self.gameover_timer.read()) > 2 and int(t / 0.5) % 2 == 0:
+            background = _Surface(
+                (Vector(self.gameover_display.surface.get_size()) + Vector(10, 10)).inttuple
+            )
+            background.fill(Color.Game.RESTART_BACKGROUND)
+            self.gameover_display.display(background, self.language)
+            background.set_alpha(_RESTART_TEXT_ALPHA)
+            StaticDisplayable(
+                background, 
+                Vector(560, 580), 
                 Alignment(
                     Alignment.Mode.CENTERED, 
-                    Alignment.Mode.CENTERED
-                ), 
-                Font.Game.RESTART_TEXT, 
-                TranslateName.game_restart_text, 
-                self.language, 
-                Color.Game.RESTART_TEXT, 
-                Color.Game.RESTART_BACKGROUND
+                    Alignment.Mode.CENTERED, 
+                    Alignment.Flag.REFERENCED, 
+                    offset=_SCREEN_OFFSET
+                )
             ).display(screen)
+
+    def __restarting_display(self, screen: _Surface) -> None:
+        background = _Surface(
+            (Vector(self.gameover_display.surface.get_size()) + Vector(10, 10)).inttuple
+        )
+        background.fill(Color.Game.RESTART_BACKGROUND)
+        self.gameover_display.display(background, self.language)
+        StaticDisplayable(
+            background, 
+            Vector(560, 580), 
+            Alignment(
+                Alignment.Mode.CENTERED, 
+                Alignment.Mode.CENTERED, 
+                Alignment.Flag.REFERENCED, 
+                offset=_SCREEN_OFFSET
+            )
+        ).display(screen)
+
+        self.blackscene_alpha += _FADE_OUT_ALPHA_RATE
+        if self.blackscene_alpha < 255:
+            self.blackscene_display.surface.set_alpha(self.blackscene_alpha)
+            self.blackscene_display.display(screen)
+            return
+        self.blackscene_display.surface.set_alpha(255)
+        self.blackscene_display.display(screen)
+        self.__handle_event(GI.GE.RELOAD)
+
+    def __reloading_display(self, screen: _Surface) -> None:
+        self.restart_scene_radius *= _RESTART_SCENE_RADIUS_RATE
+        if self.restart_scene_radius > _DEFAULT_SCREEN_DIAGONAL:
+            self.__handle_event(GI.GE.RELOADED)
+            return
+        _draw.circle(
+            self.blackscene_display.surface, 
+            Color.Game.RESTART_COLORKEY, 
+            (Vector(_DEFAULT_SCREEN_SIZE) // 2).inttuple, 
+            self.restart_scene_radius
+        )
+        self.blackscene_display.display(screen)
 
 GI = GameInterface
