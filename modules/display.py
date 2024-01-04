@@ -271,9 +271,6 @@ class Displayable:
         self.surface = surface
         self.alignment = alignment
 
-    def __topleft(self, screen: _Surface, display_coordinate: Vector) -> Vector:
-        return self.alignment(screen, self.surface) + display_coordinate
-
     def display(self, screen: _Surface, offset: Vector) -> None:
         '''
         Display the object on the screen.
