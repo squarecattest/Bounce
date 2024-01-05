@@ -1,16 +1,15 @@
-from pygame import Surface as _Surface, Color as _Color
-from pygame.font import Font as _Font
+from pygame import Surface, Color as pgColor
+from pygame.font import Font
 from pygame.transform import rotate
 from vector import Vector, NumberType
 from language import Language, TranslateName, Translatable
 from resources import Color
-from enum import Enum as _Enum, Flag as _Flag, auto as _auto
-from itertools import product as _product
-from functools import reduce as _reduce
-from typing import Union as _Union, Callable as _Callable, Generator as _Generator
+from enum import Enum, Flag, auto
+from itertools import product
+from functools import reduce
+from typing import Union, Callable, Generator
 
-type ColorType = _Union[_Color, int, str, tuple[int, int, int], tuple[int, int, int, int]]
-_COLOR_BLACK = (0, 0, 0)
+type ColorType = Union[pgColor, int, str, tuple[int, int, int], tuple[int, int, int, int]]
 
 def _typename(arg) -> str:
     return type(arg).__name__
@@ -22,54 +21,54 @@ class Alignment:
     the screen and the surface given by the alignment modes will be aligned, which gives the 
     unique reference point of a displayable object.
     '''
-    class Mode(_Enum):
-        DEFAULT = _auto()
+    class Mode(Enum):
+        DEFAULT = auto()
         '''
         The surface will be aligned at the top-left corner.
         '''
-        CENTERED = _auto()
+        CENTERED = auto()
         '''
         The surface will be aligned at the center of the surface.
         '''
-        LEFT = _auto()
+        LEFT = auto()
         '''
         The surface will be aligned at the center of the left side.
         '''
-        RIGHT = _auto()
+        RIGHT = auto()
         '''
         The surface will be aligned at the center of the right side.
         '''
-        TOP = _auto()
+        TOP = auto()
         '''
         The surface will be aligned at the center of the top side.
         '''
-        BOTTOM = _auto()
+        BOTTOM = auto()
         '''
         The surface will be aligned at the center of the bottom side.
         '''
 
-    class Flag(_Flag):
+    class Flag(Flag):
         NONE = 0
-        FILL = _auto()
+        FILL = auto()
         '''
         Repeat the surface to fill the specified region. If the alignment mode is a side, the 
         facing direction will be filled. (For example, if the mode is ``LEFT``, the right part 
         of the screen will be filled.) Otherwise, the whole screen will be filled.
         '''
-        REFERENCED = _auto()
+        REFERENCED = auto()
         '''
         Place the surface with an offset.
         '''
 
-    class Facing(_Enum):
-        LEFT = _auto()
-        RIGHT = _auto()
-        UP = _auto()
-        DOWN = _auto()
-        ALL = _auto()
+    class Facing(Enum):
+        LEFT = auto()
+        RIGHT = auto()
+        UP = auto()
+        DOWN = auto()
+        ALL = auto()
 
     @staticmethod
-    def __mode(align: Mode) -> _Callable[[_Surface], Vector]:
+    def __mode(align: Mode) -> Callable[[Surface], Vector]:
         match align:
             case Alignment.Mode.DEFAULT:
                 return lambda surface: Vector.zero
@@ -86,8 +85,8 @@ class Alignment:
             case _:
                 raise ValueError(f"Unknown alignment mode")
     
-    __screenmeth: _Callable[[_Surface], Vector]
-    __surfacemeth: _Callable[[_Surface], Vector]
+    __screenmeth: Callable[[Surface], Vector]
+    __surfacemeth: Callable[[Surface], Vector]
     flags: Flag
     __facing: Facing
     __offset: Vector
@@ -128,7 +127,7 @@ class Alignment:
         
         self.__screenmeth = Alignment.__mode(screen_mode)
         self.__surfacemeth = Alignment.__mode(surface_mode)
-        self.flags = _reduce(lambda flag, newflag: flag | newflag, flags, Alignment.Flag.NONE)
+        self.flags = reduce(lambda flag, newflag: flag | newflag, flags, Alignment.Flag.NONE)
         self.__offset = Vector.zero
         if Alignment.Flag.FILL in self.flags:
             match facing := kwargs.get("facing"):
@@ -161,8 +160,8 @@ class Alignment:
     
     def __call__(
             self, 
-            screen: _Surface, 
-            surface: _Surface, 
+            screen: Surface, 
+            surface: Surface, 
             offset: Vector = Vector.zero
         ) -> Vector:
         '''
@@ -186,10 +185,10 @@ class Alignment:
     
     def repeat(
             self, 
-            screen: _Surface, 
-            surface: _Surface, 
+            screen: Surface, 
+            surface: Surface, 
             offset: Vector
-        ) -> _Generator[Vector, None, None]:
+        ) -> Generator[Vector, None, None]:
         '''
         Return a generator which generates all the display coordinates on the screen of the 
         given alignment mode with flag ``FILL``.
@@ -252,7 +251,7 @@ class Alignment:
                     UpperBound(display_y, screen_y, surface_y) + 1
                 )
 
-        for i, j in _product(range_x, range_y):
+        for i, j in product(range_x, range_y):
             yield display + Vector(i * surface_x, j * surface_y)
     
 
@@ -267,11 +266,11 @@ class Displayable:
     alignment: :class:`Alignment`
         The alignment mode of the object.
     '''
-    def __init__(self, surface: _Surface, alignment: Alignment) -> None:
+    def __init__(self, surface: Surface, alignment: Alignment) -> None:
         self.surface = surface
         self.alignment = alignment
 
-    def display(self, screen: _Surface, offset: Vector) -> None:
+    def display(self, screen: Surface, offset: Vector) -> None:
         '''
         Display the object on the screen.
 
@@ -290,7 +289,7 @@ class Displayable:
 
     def contains(
             self, 
-            screen: _Surface, 
+            screen: Surface, 
             offset: Vector, 
             input_coordinate: Vector
         ) -> bool:
@@ -331,12 +330,12 @@ class StaticDisplayable(Displayable):
         The alignment mode of the object.
     '''
     def __init__(
-        self, surface: _Surface, offset: Vector, alignment: Alignment
+        self, surface: Surface, offset: Vector, alignment: Alignment
     ) -> None:
         super().__init__(surface, alignment)
         self.offset = offset
 
-    def display(self, screen: _Surface) -> None:
+    def display(self, screen: Surface) -> None:
         '''
         Display the object on the screen.
 
@@ -347,7 +346,7 @@ class StaticDisplayable(Displayable):
         '''
         return super().display(screen, self.offset)
 
-    def contains(self, screen: _Surface, input_coordinate: Vector) -> bool:
+    def contains(self, screen: Surface, input_coordinate: Vector) -> bool:
         '''
         Check whether the player input hits inside the surface.
 
@@ -396,9 +395,9 @@ class DisplayableText(StaticDisplayable):
             self, 
             offset: Vector, 
             alignment: Alignment, 
-            font: _Font, 
+            font: Font, 
             text: str = "", 
-            color: ColorType = _COLOR_BLACK, 
+            color: ColorType = Color.BLACK, 
             background: ColorType | None = None, 
             alpha: int = 255
     ) -> None:
@@ -415,11 +414,11 @@ class DisplayableText(StaticDisplayable):
         self.surface.set_alpha(self.__alpha)
 
     @property
-    def font(self) -> _Font:
+    def font(self) -> Font:
         return self.__font
     
     @font.setter
-    def font(self, __font: _Font) -> None:
+    def font(self, __font: Font) -> None:
         self.__font = __font
         self.__update_surface()
 
@@ -491,7 +490,7 @@ class DisplayableTranslatable(DisplayableText):
             self, 
             offset: Vector, 
             alignment: Alignment, 
-            font: _Font, 
+            font: Font, 
             translation: TranslateName, 
             language: Language, 
             color: ColorType = Color.BLACK, 
@@ -509,7 +508,7 @@ class DisplayableTranslatable(DisplayableText):
             alpha
         )
 
-    def display(self, screen: _Surface, language: Language = None) -> None:
+    def display(self, screen: Surface, language: Language = None) -> None:
         if language == self.__translatable.language or language is None:
             return super().display(screen)
         super().__text = self.__translatable.get(language)
@@ -537,7 +536,7 @@ class DisplayableBall(Displayable):
     alignment: :class:`Alignment`
         The alignment mode of the object.
     '''
-    def __init__(self, frame: _Surface, base_surface: _Surface, alignment: Alignment) -> None:
+    def __init__(self, frame: Surface, base_surface: Surface, alignment: Alignment) -> None:
         self.frame = frame
         self.base_surface = base_surface
         self.surface = self.frame.copy()
@@ -553,7 +552,7 @@ class DisplayableBall(Displayable):
         ).display(self.surface)
         
 
-    def display(self, screen: _Surface, offset: Vector, angle: NumberType) -> None:
+    def display(self, screen: Surface, offset: Vector, angle: NumberType) -> None:
         '''
         Display the object on the screen.
 

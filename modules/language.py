@@ -1,19 +1,19 @@
-from json import load as _jsonload
-from enum import Enum as _Enum, StrEnum as _StrEnum, auto as _auto
+from json import load as jsonload
+from enum import Enum, StrEnum, auto
 
-class Language(_Enum):
-    English = _auto()
-    Japanese = _auto()
-    Chinese = _auto()
+class Language(Enum):
+    English = auto()
+    Japanese = auto()
+    Chinese = auto()
 
-class TranslateName(_StrEnum):
-    name = _auto()
-    game_start_text = _auto()
-    game_scoreboard_record_height = _auto()
-    game_scoreboard_height = _auto()
-    game_scoreboard_level = _auto()
-    game_scoreboard_time = _auto()
-    game_restart_text = _auto()
+class TranslateName(StrEnum):
+    name = auto()
+    game_start_text = auto()
+    game_scoreboard_record_height = auto()
+    game_scoreboard_height = auto()
+    game_scoreboard_level = auto()
+    game_scoreboard_time = auto()
+    game_restart_text = auto()
 
 class Translatable:
     '''
@@ -31,7 +31,7 @@ class Translatable:
         To be documented
         '''
         with open(filepath, "r", encoding="utf-8") as file:
-            translations = _jsonload(file)
+            translations = jsonload(file)
         if not isinstance(translations, dict):
             raise cls.__error
         language_dict = {}

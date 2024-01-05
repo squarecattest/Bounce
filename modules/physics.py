@@ -1,31 +1,12 @@
-from vector import *
-from abc import ABC as _ABC, abstractmethod as _abstractmethod
-from typing import Literal as _Literal, Iterable as _Iterable
-from itertools import product as _product
-from random import triangular as _triangular
-from math import pi as _pi
+from vector import Vector, NumberType, LengthType, VectorType, SizeType
+from constants import PhysicsConstant as Constant
+from abc import ABC, abstractmethod
+from typing import Literal, Iterable
+from itertools import product
+from random import triangular
+from math import pi
 
-_RAD_INV = 180 / _pi
-'------------------Constant Settings------------------'
-_BALL_RADIUS = 20
-_GRAVITY = Vector(0, -960)
-_BOUNCE_VELOCITY = 400
-_BOUNCE_VELOCITY_PARAS = (480, 525)
-_WALL_REFLECT_VELOCITY_CONSTANT = 1.25
-_WALL_REFLECT_ALLOWED_DISTANCE = 0 #1 ?
-_MAX_BOUNCABLE_DISTANCE = 20
-_SLIDING_MULTIPLIER = 3
-
-## Tick-based Constants
-_COLLISION_ALPHA, _COLLISION_BETA = 0.6, 15
-_SLIDING_ALPHA, _SLIDING_BETA = 0.92, 0.01
-_ROLLING_ALPHA, _ROLLING_BETA = 0.993, 0.1
-## Time-based Constants
-_SLIDING_GAMMA, _SLIDING_DELTA = 15, 0.139
-_ROLLING_GAMMA, _ROLLING_DELTA = 2.5, 0.1
-'-----------------------------------------------------'
-
-def _sign(number: NumberType) -> _Literal[-1, 0, 1]:
+def _sign(number: NumberType) -> Literal[-1, 0, 1]:
     '''
     Mathematical sign function.
     '''
@@ -37,7 +18,7 @@ def _to_degree(radian: float) -> float:
     '''
     Convert an angle from radian to degree.
     '''
-    return radian * _RAD_INV
+    return radian * Constant.RAD_INV
 
 def _tick_based_linear_contraction(
         original: Vector, 
@@ -114,8 +95,8 @@ def _time_based_linear_contraction(
         return center.copy()
     return center + unit * mag
 
-def _bounce_velocity() -> Vector:
-    return Vector(0, _triangular(*_BOUNCE_VELOCITY_PARAS))
+def _bounce_velocity() -> NumberType:
+    return triangular(*Constant.BOUNCE_VELOCITY_RANGE)
 
 def _wall_reflect_velocity(distance: NumberType) -> NumberType:
     '''
@@ -128,16 +109,16 @@ def _wall_reflect_velocity(distance: NumberType) -> NumberType:
     distance: :class:`NumberType`
         The distance to the wall surface.
     '''
-    if distance < _WALL_REFLECT_ALLOWED_DISTANCE:
+    if distance < Constant.WALL_REFLECT_ALLOWED_DISTANCE:
         return 0
-    return _WALL_REFLECT_VELOCITY_CONSTANT * (distance ** 2)
+    return Constant.WALL_REFLECT_VELOCITY_MULTIPLIER * (distance ** 2)
 
 
-class PhysicsObject(_ABC):
+class PhysicsObject(ABC):
     '''
     The meta class representing physical interaction of an object.
     '''
-    @_abstractmethod
+    @abstractmethod
     def check_collision(self, ball: "PhysicsBall") -> Vector | None:
         '''
         Check if colliding with the ball.
@@ -154,7 +135,7 @@ class PhysicsObject(_ABC):
         '''
         pass
     
-    @_abstractmethod
+    @abstractmethod
     def ckeck_onground(self, ball: "PhysicsBall") -> bool:
         '''
         Check if the on-ground ball is still on this object. Notice that a bounce will 
@@ -168,7 +149,7 @@ class PhysicsObject(_ABC):
         '''
         pass
     
-    @_abstractmethod
+    @abstractmethod
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
         '''
         Get the normal vector of the contact point.
@@ -186,7 +167,7 @@ class PhysicsObject(_ABC):
         pass
     
     @property
-    @_abstractmethod
+    @abstractmethod
     def velocity(self) -> Vector:
         pass
 
@@ -358,7 +339,7 @@ class PhysicsSlab(PhysicsObject):
 
         # Check corners
         ball_pos = ball.position
-        for x, y in _product(x_range, y_range):
+        for x, y in product(x_range, y_range):
             if (vec := ball_pos - Vector(x, y)).magnitude <= ball.radius:
                 return vec
 
@@ -455,7 +436,7 @@ class PhysicsBall(PhysicsObject):
         self.__collision_exceptions = []
         self.__debug_msgs = []
 
-    def tick(self, dt: float, objs: _Iterable[PhysicsObject], bounce: bool) -> None:
+    def tick(self, dt: float, objs: Iterable[PhysicsObject], bounce: bool) -> None:
         '''
         Apply all the interactions.
 
@@ -473,11 +454,13 @@ class PhysicsBall(PhysicsObject):
         self.update_onground()
         self.update_bounceability(self.__v.magnitude * dt)
         if not self.__onground:
-            self.__v += _GRAVITY * dt
+            self.__v += Constant.GRAVITY * dt
         else:
             self.__collision_exceptions.append(self.__ground)
             self.handle_friction(
-                dt, self.__ground.velocity, self.__ground.get_normal_vector(self)
+                dt, 
+                self.__ground.velocity, 
+                self.__ground.get_normal_vector(self)
             )
         if bounce:
             self.bounce()
@@ -492,7 +475,7 @@ class PhysicsBall(PhysicsObject):
         '''
         if not self.__bounceable:
             return
-        self.__v.y = min(self.__v.y, 0) + _triangular(*_BOUNCE_VELOCITY_PARAS)
+        self.__v.y = min(self.__v.y, 0) + _bounce_velocity()
         self.set_onground(False)
         self.set_bounceability(False)
 
@@ -524,7 +507,7 @@ class PhysicsBall(PhysicsObject):
                 dt, 
                 obj.velocity, 
                 collision_vector, 
-                multiplier=_SLIDING_MULTIPLIER
+                multiplier=Constant.SLIDING_MULTIPLIER_ONCOLLISION
             )
         else:
             self.remove_wall_stuck(obj)
@@ -549,11 +532,20 @@ class PhysicsBall(PhysicsObject):
             return
         v1_para = self.__v - v1_perp
         v2_para = ball.__v - v2_perp
-        v1_perp, v2_perp = _tick_based_linear_contraction(
-                v2_perp, Vector.zero, _COLLISION_ALPHA, _COLLISION_BETA
-            ), _tick_based_linear_contraction(
-                v1_perp, Vector.zero, _COLLISION_ALPHA, _COLLISION_BETA
+        v1_perp, v2_perp = (
+            _tick_based_linear_contraction(
+                v2_perp, 
+                Vector.zero, 
+                Constant.COLLISION_ALPHA, 
+                Constant.COLLISION_BETA
+            ), 
+            _tick_based_linear_contraction(
+                v1_perp, 
+                Vector.zero, 
+                Constant.COLLISION_ALPHA, 
+                Constant.COLLISION_BETA
             )
+        )
         self.__v = v1_perp + v1_para
         ball.__v = v2_perp + v2_para
         self.__debug_msgs.append("<collide: Ball>")
@@ -576,7 +568,10 @@ class PhysicsBall(PhysicsObject):
             return
         v_rel_para = v_rel - v_rel_perp
         v_rel_perp = _tick_based_linear_contraction(
-            -v_rel_perp, Vector.zero, _COLLISION_ALPHA, _COLLISION_BETA
+            -v_rel_perp, 
+            Vector.zero, 
+            Constant.COLLISION_ALPHA, 
+            Constant.COLLISION_BETA
         )
         self.__v = v_2 + v_rel_perp + v_rel_para
         if v_rel_perp.is_zerovec and normal_vector == Vector.unit_upward:
@@ -663,17 +658,29 @@ class PhysicsBall(PhysicsObject):
         v_diff = (v_rot - v_rel_para) / 3
         v_weighted = (v_rot + 2 * v_rel_para) / 3
         v_diff = _time_based_linear_contraction(
-            v_diff, Vector.zero, multiplier * dt, _SLIDING_GAMMA, _SLIDING_DELTA
+            v_diff, 
+            Vector.zero, 
+            multiplier * dt, 
+            Constant.SLIDING_GAMMA, 
+            Constant.SLIDING_DELTA
         )
         v_rot = 2 * v_diff + v_weighted
         v_rel_para = v_weighted - v_diff
 
         # Rolling friction
         v_rot = _time_based_linear_contraction(
-            v_rot, Vector.zero, dt, _ROLLING_GAMMA, _ROLLING_DELTA
+            v_rot, 
+            Vector.zero, 
+            dt, 
+            Constant.ROLLING_GAMMA, 
+            Constant.ROLLING_DELTA
         )
         v_rel_para = _time_based_linear_contraction(
-            v_rel_para, Vector.zero, dt, _ROLLING_GAMMA, _ROLLING_DELTA
+            v_rel_para, 
+            Vector.zero, 
+            dt, 
+            Constant.ROLLING_GAMMA, 
+            Constant.ROLLING_DELTA
         )
         self.__v = obj_velocity - (v_rel_perp + v_rel_para)
         self.__w = v_rel_para.magnitude * _sign(v_rel_para * tangent_vector) / self.__radius
@@ -745,7 +752,7 @@ class PhysicsBall(PhysicsObject):
         if self.__onground or not self.__bounceable:
             return
         self.__path_length += traveled_distance
-        if self.__path_length > _MAX_BOUNCABLE_DISTANCE:
+        if self.__path_length > Constant.MAX_BOUNCABLE_DISTANCE:
             self.set_bounceability(False)
 
     @property
@@ -783,7 +790,7 @@ class PhysicsBall(PhysicsObject):
         '''
         (Read-only) The reduced rotated angle of the ball, in unit of radian.
         '''
-        return self.__angle % (2 * _pi)
+        return self.__angle % (2 * pi)
     
     @property
     def deg_angle(self) -> NumberType:

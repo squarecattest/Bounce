@@ -1,37 +1,23 @@
 from physics import PhysicsBall, PhysicsGround, PhysicsSlab, PhysicsWall, PhysicsObject
 from vector import _isNumber, NumberType, Vector
-from collections import deque as _deque
-from functools import reduce as _reduce
-from json import load as _load
-from typing import (
-    NamedTuple as _NamedTuple, 
-    Callable as _Callable, 
-    Iterator as _Iterator, 
-    Generator as _Generator
-)
-
-_BALL_RADIUS = 20
-_SLAB_GAP = 100
-_DEFAULT_SCREEN_SIZE = 1120, 630
-_TRACE_HEIGHT = 250
-_ORIGINAL_TOP_HEIGHT = 500
-
-_GROUND_Y = -_BALL_RADIUS
-_GAMEOVER_HEIGHT = _ORIGINAL_TOP_HEIGHT - _DEFAULT_SCREEN_SIZE[1] - _BALL_RADIUS
-_UPPER_SLAB_BOUNDARY = _ORIGINAL_TOP_HEIGHT + _SLAB_GAP
-_LOWER_SLAB_BOUNDARY = _ORIGINAL_TOP_HEIGHT - _DEFAULT_SCREEN_SIZE[1] - _SLAB_GAP
+from constants import GeneralConstant, GameConstant as Constant
+from collections import deque
+from json import load
+from typing import NamedTuple,  Callable, Iterator, Generator
 
 def get_level(height: NumberType) -> int:
-    return int(height) // _SLAB_GAP + 1
+    return int(height) // Constant.SLAB_GAP + 1
 
 def get_height(level: int) -> int:
-    return level * _SLAB_GAP - _SLAB_GAP // 2 - _BALL_RADIUS
+    return level * Constant.SLAB_GAP - Constant.SLAB_GAP // 2 - GeneralConstant.BALL_RADIUS
 
-class _Level(_NamedTuple):
+
+class _Level(NamedTuple):
     length: int
     width: int
     separation: int
     velocity: NumberType
+
 
 class LevelGenerator:
     class ParserError(Exception):
@@ -63,7 +49,7 @@ class LevelGenerator:
         length = 0
         self.__repeat_from = None
         with open(level_filepath, "r") as file:
-            levels = _load(file)
+            levels = load(file)
         if not isinstance(levels, list):
             raise LevelGenerator.__error
         for level in levels:
@@ -93,39 +79,42 @@ class LevelGenerator:
             
 
 class SlabLevel:
-    GENERATE_HEIGHT: int = _GROUND_Y + _SLAB_GAP
+    GENERATE_HEIGHT: int = Constant.GROUND_Y + Constant.SLAB_GAP
     LEVEL: int = 2
     height: int
     level: int
-    __slabs: _deque[PhysicsSlab]
-    __recycle: _Callable[[], None]
+    __slabs: deque[PhysicsSlab]
+    __recycle: Callable[[], None]
 
     def __init__(self, level_generator: LevelGenerator) -> None:
         level = level_generator.generate()
-        self.__slabs = _deque()
+        self.__slabs = deque()
         self.height = SlabLevel.GENERATE_HEIGHT
         self.level = SlabLevel.LEVEL
         SlabLevel.LEVEL += 1
         if level is None:
             self.__recycle = lambda: None
-            SlabLevel.GENERATE_HEIGHT += _SLAB_GAP
+            SlabLevel.GENERATE_HEIGHT += Constant.SLAB_GAP
             return
         
         # Generate
         unit_length = level.length + level.separation
-        generate_sets = 1 + (_DEFAULT_SCREEN_SIZE[0] + level.length - 1) // unit_length
+        generate_sets = \
+            1 + (GeneralConstant.DEFAULT_SCREEN_SIZE[0] + level.length - 1) // unit_length
         cycle_length = generate_sets * unit_length
 
         for i in range(generate_sets):
-            self.__slabs.append(PhysicsSlab(
-                (unit_length * i + level.length // 2, SlabLevel.GENERATE_HEIGHT), 
-                (level.length, level.width), 
-                level.velocity
-            ))
+            self.__slabs.append(
+                PhysicsSlab(
+                    (unit_length * i + level.length // 2, SlabLevel.GENERATE_HEIGHT), 
+                    (level.length, level.width), 
+                    level.velocity
+                )
+            )
 
         # Set recycle condition
         if level.velocity > 0:
-            boundary = _DEFAULT_SCREEN_SIZE[0] + level.length // 2
+            boundary = GeneralConstant.DEFAULT_SCREEN_SIZE[0] + level.length // 2
             def recycle():
                 if (pos := self.__slabs[-1].position).x >= boundary:
                     pos.x -= cycle_length
@@ -142,9 +131,9 @@ class SlabLevel:
             self.__recycle = lambda: None
 
         # Clean up
-        SlabLevel.GENERATE_HEIGHT += _SLAB_GAP
+        SlabLevel.GENERATE_HEIGHT += Constant.SLAB_GAP
 
-    def __iter__(self) -> _Iterator[PhysicsSlab]:
+    def __iter__(self) -> Iterator[PhysicsSlab]:
         return iter(self.__slabs)
 
     def tick(self, dt: float) -> None:
@@ -154,7 +143,7 @@ class SlabLevel:
 
     @classmethod
     def reload(cls) -> None:
-        cls.GENERATE_HEIGHT = _GROUND_Y + _SLAB_GAP
+        cls.GENERATE_HEIGHT = Constant.GROUND_Y + Constant.SLAB_GAP
         cls.LEVEL = 2
         
 
@@ -166,18 +155,24 @@ class Game:
     ground: PhysicsGround
     wall_left: PhysicsWall
     wall_right: PhysicsWall
-    slab_levels: _deque[SlabLevel]
+    slab_levels: deque[SlabLevel]
     def __init__(self, level_filepath: str) -> None:
         self.__level_generator = LevelGenerator(level_filepath)
         self.reference = 0
         self.max_height = 0
         self.gameover = False
-        self.ball = PhysicsBall((_DEFAULT_SCREEN_SIZE[0] // 2, 0), _BALL_RADIUS)
-        self.ground = PhysicsGround(_GROUND_Y)
+        self.ball = PhysicsBall(
+            (GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 0), 
+            GeneralConstant.BALL_RADIUS
+        )
+        self.ground = PhysicsGround(Constant.GROUND_Y)
         self.wall_left = PhysicsWall(0, PhysicsWall.FACING_RIGHT)
-        self.wall_right = PhysicsWall(_DEFAULT_SCREEN_SIZE[0], PhysicsWall.FACING_LEFT)
-        self.slab_levels = _deque()
-        while SlabLevel.GENERATE_HEIGHT <= _UPPER_SLAB_BOUNDARY:
+        self.wall_right = PhysicsWall(
+            GeneralConstant.DEFAULT_SCREEN_SIZE[0], 
+            PhysicsWall.FACING_LEFT
+        )
+        self.slab_levels = deque()
+        while SlabLevel.GENERATE_HEIGHT <= Constant.UPPER_SLAB_BOUNDARY:
             self.slab_levels.append(SlabLevel(self.__level_generator))
 
     def tick(self, dt: float, bounce: bool) -> None:
@@ -191,17 +186,17 @@ class Game:
             bounce
         )
         if (pos_y := self.ball.position.y) + self.ball.radius \
-            <= _GAMEOVER_HEIGHT + self.reference:
+            <= Constant.GAMEOVER_HEIGHT + self.reference:
             self.gameover = True
             return
         if pos_y > self.max_height:
             self.max_height = pos_y
-        if (reference := pos_y - _TRACE_HEIGHT) > self.reference:
+        if (reference := pos_y - Constant.TRACE_HEIGHT) > self.reference:
             self.reference = reference
             while self.slab_levels \
-                and self.slab_levels[0].height <= reference + _LOWER_SLAB_BOUNDARY:
+                and self.slab_levels[0].height <= reference + Constant.LOWER_SLAB_BOUNDARY:
                 self.slab_levels.popleft()
-            while SlabLevel.GENERATE_HEIGHT <= reference + _UPPER_SLAB_BOUNDARY:
+            while SlabLevel.GENERATE_HEIGHT <= reference + Constant.UPPER_SLAB_BOUNDARY:
                 self.slab_levels.append(SlabLevel(self.__level_generator))
 
     def restart(self) -> None:
@@ -210,22 +205,25 @@ class Game:
         self.reference = 0
         self.max_height = 0
         self.gameover = False
-        self.ball = PhysicsBall((_DEFAULT_SCREEN_SIZE[0] // 2, 0), _BALL_RADIUS)
-        self.slab_levels = _deque()
-        while SlabLevel.GENERATE_HEIGHT <= _UPPER_SLAB_BOUNDARY:
+        self.ball = PhysicsBall(
+            (GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 0), 
+            GeneralConstant.BALL_RADIUS
+        )
+        self.slab_levels = deque()
+        while SlabLevel.GENERATE_HEIGHT <= Constant.UPPER_SLAB_BOUNDARY:
             self.slab_levels.append(SlabLevel(self.__level_generator))
         
     def position_map(self, position: Vector) -> Vector:
-        return Vector(position.x, _ORIGINAL_TOP_HEIGHT + self.reference - position.y)
+        return Vector(position.x, Constant.ORIGINAL_TOP_HEIGHT + self.reference - position.y)
     
     @property
-    def slabs(self) -> _Generator[PhysicsSlab, None, None]:
+    def slabs(self) -> Generator[PhysicsSlab, None, None]:
         for slab_level in self.slab_levels:
             for slab in slab_level:
                 yield slab
 
     @property
-    def objects(self) -> _Generator[PhysicsObject, None, None]:
+    def objects(self) -> Generator[PhysicsObject, None, None]:
         yield self.ground
         yield self.wall_left
         yield self.wall_right

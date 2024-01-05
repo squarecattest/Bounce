@@ -1,17 +1,17 @@
-from collections.abc import Iterable as _Iterable, Generator as _Generator
-from typing import overload as _overload, Self as _Self, Literal as _Literal
-from math import isfinite as _isfinite
+from collections.abc import Iterable, Generator
+from typing import overload, Literal
+from math import isfinite
 
 type NumberType = int | float
 type LengthType = int | float
-type VectorType = Vector | _Iterable[NumberType]
-type SizeType = Vector | _Iterable[int]
+type VectorType = Vector | Iterable[NumberType]
+type SizeType = Vector | Iterable[int]
 
 def _isNumber(arg, /) -> bool:
     '''
     Check if an argument is a real number.
     '''
-    return isinstance(arg, int) or isinstance(arg, float) and _isfinite(arg)
+    return isinstance(arg, int) or isinstance(arg, float) and isfinite(arg)
 
 def _toVectorArg(arg, /) -> tuple[NumberType, NumberType] | None:
     '''
@@ -39,7 +39,7 @@ def _getTypeName(arg, /) -> str:
     '''
     Get the error type name of a value. Used for exception raising.
     '''
-    if isinstance(arg, float) and not _isfinite(arg):
+    if isinstance(arg, float) and not isfinite(arg):
         return str(arg)
     return type(arg).__name__
     
@@ -50,10 +50,10 @@ class Vector:
     '''
     __x: NumberType
     __y: NumberType
-    @_overload
+    @overload
     def __init__(self, __x: NumberType, __y: NumberType, /) -> None: ...
-    @_overload
-    def __init__(self, __v: _Iterable[NumberType]) -> None: ...
+    @overload
+    def __init__(self, __v: Iterable[NumberType]) -> None: ...
 
     def __init__(self, *args) -> None:
         length = len(args)
@@ -96,9 +96,9 @@ class Vector:
             return NotImplemented
         return Vector(self.__x - __v.__x, self.__y - __v.__y)
 
-    @_overload
+    @overload
     def __mul__(self, __c: NumberType) -> "Vector": ...
-    @_overload
+    @overload
     def __mul__(self, __v: "Vector") -> NumberType: ...
 
     def __mul__(self, arg: "NumberType | Vector") -> "Vector | NumberType":
@@ -118,7 +118,7 @@ class Vector:
             return NotImplemented
         return Vector(__c * self.__x, __c * self.__y)
     
-    def __imul__(self, __c: NumberType) -> _Self:
+    def __imul__(self, __c: NumberType) -> "Vector":
         if not _isNumber(__c):
             return NotImplemented
         return Vector(__c * self.__x, __c * self.__y)
@@ -158,11 +158,11 @@ class Vector:
         else:
             self.__y = __value
 
-    def __iter__(self) -> _Generator[NumberType, None, None]:
+    def __iter__(self) -> Generator[NumberType, None, None]:
         yield self.__x
         yield self.__y
 
-    def __len__(self) -> _Literal[2]:
+    def __len__(self) -> Literal[2]:
         return 2
     
     def __str__(self) -> str:

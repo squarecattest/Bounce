@@ -1,53 +1,63 @@
 import pygame
-from pygame import Surface as _Surface
-from pygame.event import Event as _Event
-from pygame import draw as _draw
+from pygame import Surface
+from pygame.event import Event
+from pygame import draw
 from game import Game, get_level, get_height
-from display import *
-from resources import *
+from display import (
+    Alignment, 
+    Displayable, 
+    DisplayableBall, 
+    DisplayableText, 
+    DisplayableTranslatable, 
+    StaticDisplayable
+)
+from language import TranslateName
+from resources import Font, Texture, Color
 from vector import Vector
 from language import Language
 from utils import Timer, time_string
-from collections import deque as _deque
-from dataclasses import dataclass
-from enum import Enum as _Enum, Flag as _Flag, auto as _auto
-from typing import NamedTuple as _NamedTuple
+from constants import GeneralConstant, InterfaceConstant as Constant
+from collections import deque
+from enum import Enum, Flag, auto
+from abc import ABC
+from typing import NamedTuple
 
-_DEFAULT_SCREEN_SIZE = 1120, 630
-_DEFAULT_SCREEN_DIAGONAL = (_DEFAULT_SCREEN_SIZE[0]**2 + _DEFAULT_SCREEN_SIZE[1]**2) ** (1/2)
-_SCREEN_OFFSET = Vector(-560, -315)
-_INGAME_FPS = 360
-_DT = 1 / _INGAME_FPS
-_RESTART_TEXT_ALPHA = 180
-_DEBUG_TEXT_SEP = 20
-_DEBUG_TEXT_ALPHA = 150
-_DEBUG_TEXT_LASTING_TIME = 0.5
-_FADE_OUT_ALPHA_RATE = 5
-_RESTART_SCENE_RADIUS_RATE = 1.2
+
+class Request:
+    pass
+
+
+class GameRequest(Request, Enum):
+    QUIT = auto()
+
+
+class Interface(ABC):
+    pass
+
 
 class GameInterface:
-    class GameEvent(_Enum):
-        EMPTY = _auto()
-        START = SPACE = _auto()
-        GAMEOVER = _auto()
-        RESTART = _auto()
-        RELOAD = _auto()
-        RELOADED = _auto()
-        DEBUG = _auto()
-        QUIT = _auto()
+    class GameEvent(Enum):
+        EMPTY = auto()
+        START = SPACE = auto()
+        GAMEOVER = auto()
+        RESTART = auto()
+        RELOAD = auto()
+        RELOADED = auto()
+        DEBUG = auto()
+        QUIT = auto()
 
-    class GameStatus(_Flag):
-        LOADED = _auto()
-        STARTING = _auto()
-        STARTED = _auto()
-        GAMEOVER = _auto()
-        RESTARTING = _auto()
-        RELOADING = _auto()
+    class GameStatus(Flag):
+        LOADED = auto()
+        STARTING = auto()
+        STARTED = auto()
+        GAMEOVER = auto()
+        RESTARTING = auto()
+        RELOADING = auto()
 
     GE = GameEvent
     GS = GameStatus
 
-    class DebugMsgTimer(_NamedTuple):
+    class DebugMsgTimer(NamedTuple):
         msg: str
         timer: Timer
 
@@ -56,12 +66,13 @@ class GameInterface:
         self.language = language
         self.ingame_timer = Timer()
         self.tick_timer = Timer(start=True)
+        self.transform_timer = Timer()
         self.status = GI.GS.LOADED
         self.bounce = False
         self.debugging = False
         self.record_height = 0
         self.height = 0
-        self.debug_msgs: _deque[GI.DebugMsgTimer] = _deque()
+        self.debug_msgs: deque[GI.DebugMsgTimer] = deque()
         self.ball_display = DisplayableBall(
             Texture.BALL_FRAME, 
             Texture.BALL_SURFACE, 
@@ -69,23 +80,28 @@ class GameInterface:
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.CENTERED, 
                 Alignment.Flag.REFERENCED, 
-                offset=_SCREEN_OFFSET
+                offset=Constant.SCREEN_OFFSET
             )
         )
-        self.ground_display = Displayable(Texture.GROUND, Alignment(
-            Alignment.Mode.CENTERED, 
-            Alignment.Mode.TOP, 
-            Alignment.Flag.FILL, 
-            Alignment.Flag.REFERENCED, 
-            facing=Alignment.Facing.DOWN, 
-            offset=_SCREEN_OFFSET
-        ))
-        self.slab_display = Displayable(Texture.SLAB, Alignment(
-            Alignment.Mode.CENTERED, 
-            Alignment.Mode.CENTERED, 
-            Alignment.Flag.REFERENCED,
-            offset=_SCREEN_OFFSET
-        ))
+        self.ground_display = Displayable(
+            Texture.GROUND, 
+            Alignment(
+                Alignment.Mode.CENTERED, 
+                Alignment.Mode.TOP, 
+                Alignment.Flag.FILL, 
+                Alignment.Flag.REFERENCED, 
+                facing=Alignment.Facing.DOWN, 
+                offset=Constant.SCREEN_OFFSET
+            )
+        )
+        self.slab_display = Displayable(
+            Texture.SLAB, Alignment(
+                Alignment.Mode.CENTERED, 
+                Alignment.Mode.CENTERED, 
+                Alignment.Flag.REFERENCED,
+                offset=Constant.SCREEN_OFFSET
+            )
+        )
         self.scoreboard_bg = StaticDisplayable(
             Texture.SCOREBOARD, 
             Vector(560, 0), 
@@ -95,7 +111,7 @@ class GameInterface:
                 Alignment.Flag.FILL, 
                 Alignment.Flag.REFERENCED, 
                 facing=Alignment.Facing.UP, 
-                offset=_SCREEN_OFFSET
+                offset=Constant.SCREEN_OFFSET
             )
         )
         self.start_display = DisplayableTranslatable(
@@ -104,7 +120,7 @@ class GameInterface:
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.CENTERED, 
                 Alignment.Flag.REFERENCED, 
-                offset=_SCREEN_OFFSET
+                offset=Constant.SCREEN_OFFSET
             ), 
             Font.Game.START_TEXT, 
             TranslateName.game_start_text, 
@@ -123,7 +139,7 @@ class GameInterface:
             Color.Game.RESTART_TEXT
         )
         self.blackscene_display = StaticDisplayable(
-            _Surface(_DEFAULT_SCREEN_SIZE), 
+            Surface(GeneralConstant.DEFAULT_SCREEN_SIZE), 
             Vector.zero, 
             Alignment(
                 Alignment.Mode.CENTERED, 
@@ -142,25 +158,25 @@ class GameInterface:
         self.debug_msgs.clear()
 
     def tick(self) -> None:
-        ticks = int(_INGAME_FPS * self.tick_timer.read())
-        self.tick_timer.offset(-ticks * _DT)
-        self.game.tick(_DT, self.bounce)
+        ticks = int(Constant.INGAME_FPS * self.tick_timer.read())
+        self.tick_timer.offset(-ticks * Constant.DT)
+        self.game.tick(Constant.DT, self.bounce)
         self.bounce = False
         for _ in range(ticks - 1):
-            self.game.tick(_DT, False)
+            self.game.tick(Constant.DT, False)
         self.height = max(self.height, self.game.ball.pos_y)
         if not GI.GameStatus.GAMEOVER in self.status and self.game.gameover:
             self.__handle_event(GI.GE.GAMEOVER)
         self.__read_debug_msg()
 
-    def add_event(self, event: _Event) -> None:
+    def add_event(self, event: Event) -> None:
         self.__handle_event(self.__event_converter(event))
 
     def __handle_event(self, event: GameEvent) -> None:
         match event:
             case GI.GE.SPACE if GI.GS.GAMEOVER in self.status \
                 and not GI.GS.RESTARTING in self.status:
-                if self.gameover_timer.read() > 2:
+                if self.transform_timer.read() > 2:
                     self.__handle_event(GI.GE.RESTART)
             case GI.GE.SPACE if (GI.GS.RELOADING | GI.GS.LOADED) & self.status:
                 self.ingame_timer.start()
@@ -171,21 +187,21 @@ class GameInterface:
             case GI.GE.DEBUG:
                 self.debugging = not self.debugging
             case GI.GE.GAMEOVER:
-                self.status = GI.GS.GAMEOVER
                 self.ingame_timer.pause()
-                self.gameover_timer = Timer(start=True)
+                self.transform_timer.restart()
+                self.status = GI.GS.GAMEOVER
             case GI.GE.RESTART:
                 self.blackscene_display.surface.fill(Color.BLACK)
-                self.blackscene_alpha = 0
+                self.transform_timer.restart()
                 self.status |= GI.GS.RESTARTING
             case GI.GE.RELOAD:
                 self.__restart()
-                self.restart_scene_radius = 1
+                self.transform_timer.restart()
                 self.status = GI.GS.RELOADING
             case GI.GE.RELOADED:
                 self.status |= GI.GS.LOADED
 
-    def __event_converter(self, event: _Event) -> GameEvent:
+    def __event_converter(self, event: Event) -> GameEvent:
         match event.type:
             case pygame.KEYDOWN:
                 match event.__dict__.get("key"):
@@ -199,12 +215,13 @@ class GameInterface:
     
     def __read_debug_msg(self) -> None:
         self.debug_msgs.extend(
-            (GI.DebugMsgTimer(text, Timer(start=True)) for text in self.game.ball.debug_msgs)
+            GI.DebugMsgTimer(text, Timer(start=True)) for text in self.game.ball.debug_msgs
         )
-        while self.debug_msgs and self.debug_msgs[0].timer.read() > _DEBUG_TEXT_LASTING_TIME:
+        while self.debug_msgs \
+            and self.debug_msgs[0].timer.read() > Constant.DEBUG_TEXT_LASTING_TIME:
             self.debug_msgs.popleft()
 
-    def display(self, screen: _Surface, set_FPS: int, real_FPS: int) -> None:
+    def display(self, screen: Surface, set_FPS: int, real_FPS: int) -> None:
         self.ground_display.display(
             screen, 
             self.game.position_map(self.game.ground.position)
@@ -232,14 +249,14 @@ class GameInterface:
         if GI.GS.RELOADING in self.status:
             self.__reloading_display(screen)
 
-    def __starting_display(self, screen: _Surface) -> None:
+    def __starting_display(self, screen: Surface) -> None:
         self.start_display.offset = \
             Vector(560, 1000 * (self.ingame_timer.read() - 0.1)**2 + 565)
         if self.start_display.offset.y > 650:
             self.status &= ~GI.GS.STARTING
         self.start_display.display(screen, self.language)
 
-    def __level_display(self, screen: _Surface) -> None:
+    def __level_display(self, screen: Surface) -> None:
         def at_level(level: int) -> None:
             DisplayableText(
                 self.game.position_map(Vector(7, get_height(level)) + Vector(2, -2)), 
@@ -247,7 +264,7 @@ class GameInterface:
                     Alignment.Mode.CENTERED, 
                     Alignment.Mode.LEFT, 
                     Alignment.Flag.REFERENCED, 
-                    offset=_SCREEN_OFFSET
+                    offset=Constant.SCREEN_OFFSET
                 ), 
                 Font.Game.LEVEL_TEXT, 
                 str(level), 
@@ -259,7 +276,7 @@ class GameInterface:
                     Alignment.Mode.CENTERED, 
                     Alignment.Mode.LEFT, 
                     Alignment.Flag.REFERENCED, 
-                    offset=_SCREEN_OFFSET
+                    offset=Constant.SCREEN_OFFSET
                 ), 
                 Font.Game.LEVEL_TEXT, 
                 str(level), 
@@ -269,13 +286,13 @@ class GameInterface:
         for slab_level in self.game.slab_levels:
             at_level(slab_level.level)
 
-    def __scoreboard_display(self, screen: _Surface) -> None:
+    def __scoreboard_display(self, screen: Surface) -> None:
         self.scoreboard_bg.display(screen)
         scoreboard_alignment = Alignment(
             Alignment.Mode.CENTERED, 
             Alignment.Mode.LEFT, 
             Alignment.Flag.REFERENCED, 
-            offset=_SCREEN_OFFSET
+            offset=Constant.SCREEN_OFFSET
         )
         DisplayableTranslatable(
             Vector(6, 10), 
@@ -338,14 +355,14 @@ class GameInterface:
             Color.Game.SCOREBOARD_VALUE
         ).display(screen)
 
-    def __debug_display(self, screen: _Surface, set_FPS: int, real_FPS: int) -> None:
+    def __debug_display(self, screen: Surface, set_FPS: int, real_FPS: int) -> None:
         base_position = Vector(2, 72)
-        unit_offset = Vector(0, _DEBUG_TEXT_SEP)
+        unit_offset = Vector(0, Constant.DEBUG_TEXT_SEP)
         text_alignment = Alignment(
             Alignment.Mode.CENTERED, 
             Alignment.Mode.LEFT, 
             Alignment.Flag.REFERENCED, 
-            offset=_SCREEN_OFFSET
+            offset=Constant.SCREEN_OFFSET
         )
         debug_texts = [
             f"FPS(setting/real-time): {set_FPS}/{real_FPS}", 
@@ -365,17 +382,17 @@ class GameInterface:
                 debug_text, 
                 Color.Game.DEBUG_TEXT, 
                 Color.Game.DEBUG_BACKGROUND, 
-                _DEBUG_TEXT_ALPHA
+                Constant.DEBUG_TEXT_ALPHA
             ).display(screen)
 
-    def __gameover_display(self, screen: _Surface) -> None:
-        if (t := self.gameover_timer.read()) > 2 and int(t / 0.5) % 2 == 0:
-            background = _Surface(
+    def __gameover_display(self, screen: Surface) -> None:
+        if (t := self.transform_timer.read()) > 2 and int(t / 0.5) % 2 == 0:
+            background = Surface(
                 (Vector(self.gameover_display.surface.get_size()) + Vector(10, 10)).inttuple
             )
             background.fill(Color.Game.RESTART_BACKGROUND)
             self.gameover_display.display(background, self.language)
-            background.set_alpha(_RESTART_TEXT_ALPHA)
+            background.set_alpha(Constant.RESTART_TEXT_ALPHA)
             StaticDisplayable(
                 background, 
                 Vector(560, 580), 
@@ -383,12 +400,12 @@ class GameInterface:
                     Alignment.Mode.CENTERED, 
                     Alignment.Mode.CENTERED, 
                     Alignment.Flag.REFERENCED, 
-                    offset=_SCREEN_OFFSET
+                    offset=Constant.SCREEN_OFFSET
                 )
             ).display(screen)
 
-    def __restarting_display(self, screen: _Surface) -> None:
-        background = _Surface(
+    def __restarting_display(self, screen: Surface) -> None:
+        background = Surface(
             (Vector(self.gameover_display.surface.get_size()) + Vector(10, 10)).inttuple
         )
         background.fill(Color.Game.RESTART_BACKGROUND)
@@ -400,11 +417,13 @@ class GameInterface:
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.CENTERED, 
                 Alignment.Flag.REFERENCED, 
-                offset=_SCREEN_OFFSET
+                offset=Constant.SCREEN_OFFSET
             )
         ).display(screen)
 
-        self.blackscene_alpha += _FADE_OUT_ALPHA_RATE
+        self.blackscene_alpha = int(
+            self.transform_timer.read() * 255 / Constant.GAMEOVER_FADEOUT_SECOND
+        )
         if self.blackscene_alpha < 255:
             self.blackscene_display.surface.set_alpha(self.blackscene_alpha)
             self.blackscene_display.display(screen)
@@ -413,15 +432,15 @@ class GameInterface:
         self.blackscene_display.display(screen)
         self.__handle_event(GI.GE.RELOAD)
 
-    def __reloading_display(self, screen: _Surface) -> None:
-        self.restart_scene_radius *= _RESTART_SCENE_RADIUS_RATE
-        if self.restart_scene_radius > _DEFAULT_SCREEN_DIAGONAL:
+    def __reloading_display(self, screen: Surface) -> None:
+        if (ratio := self.transform_timer.read() / Constant.RESTART_SCENE_SECOND) >= 1:
             self.__handle_event(GI.GE.RELOADED)
             return
-        _draw.circle(
+        self.restart_scene_radius = Constant.DEFAULT_SCREEN_DIAGONAL ** ratio
+        draw.circle(
             self.blackscene_display.surface, 
             Color.Game.RESTART_COLORKEY, 
-            (Vector(_DEFAULT_SCREEN_SIZE) // 2).inttuple, 
+            (Vector(GeneralConstant.DEFAULT_SCREEN_SIZE) // 2).inttuple, 
             self.restart_scene_radius
         )
         self.blackscene_display.display(screen)
