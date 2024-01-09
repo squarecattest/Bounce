@@ -29,6 +29,11 @@ class Font:
         BARTEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
         BACKTEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
 
+    class Control:
+        TITLE = pygame.font.Font(".\\fonts\\zpix.ttf", 48)
+        TEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 32)
+        BACKTEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
+
 class Texture:
     BACKGROUND = pygame.image.load(".\\textures\\background-80x48.png").convert()
     BALL = pygame.image.load(".\\textures\\ball-40px.png").convert_alpha() #
@@ -64,6 +69,9 @@ class Texture:
     OPTION_SELECTION_RIGHT_ARROW_PRESSED = pygame.image.load(
         ".\\textures\\option_selection_right_arrow_pressed-20x36.png"
     ).convert_alpha()
+    CONTROL_KEY_SPACE = pygame.image.load(".\\textures\\control_key_space.png").convert_alpha()
+    CONTROL_KEY_ESC = pygame.image.load(".\\textures\\control_key_escape.png").convert_alpha()
+    CONTROL_KEY_D = pygame.image.load(".\\textures\\control_key_D.png").convert_alpha()
 
 class Color:
     BLACK = (0, 0, 0)
@@ -71,6 +79,8 @@ class Color:
     class Game:
         START_TEXT = (255, 255, 255)
         SELECTION_MENU_TEXT = (255, 255, 255)
+        SELECTION_MENU_TEXT_SELECTING = (160, 160, 160)
+        SELECTION_MENU_TEXT_PRESSED = (120, 120, 120)
         DEBUG_TEXT = (255, 255, 255)
         DEBUG_BACKGROUND = (89, 89, 89)
         SCOREBOARD_TITLE = (200, 200, 200)
@@ -85,12 +95,20 @@ class Color:
         TITLE = (255, 255, 255)
         TEXT = (255, 255, 255)
         TEXT_SELECTING = (160, 160, 160)
-        TEXT_SHADOW = (120, 120, 120)
+        TEXT_PRESSED = (120, 120, 120)
         BARTEXT = (200, 200, 200)
+
+    class Control:
+        TITLE = (255, 255, 255)
+        TEXT = (255, 255, 255)
+        TEXT_SELECTING = (160, 160, 160)
+        TEXT_PRESSED = (120, 120, 120)
+        TEXT_BACKGROUND = (100, 100, 100)
 
 class Path:
     LEVEL = ".\\level.json"
     SETTING = ".\\setting.json"
+    HIGHSCORE = ".\\highscore.json"
     ERRORLOG = ".\\errorlog.txt"
     class Language:
         ENGLISH = ".\\languages\\English.json"
