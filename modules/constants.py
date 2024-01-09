@@ -22,9 +22,14 @@ class PhysicsConstant:
 
 
 class GameConstant:
+    DEFAULT_LEVEL = {"length": 150, "width": 10, "separation": 70, "velocity": 40}
     SLAB_GAP = 100
     TRACE_HEIGHT = 250
     ORIGINAL_TOP_HEIGHT = 500
+    HIGHSCORE_BITRANDOM_MULTIPLIER = (2, 3.6)
+    HIGHSCORE_BITRANDOM_MINIMUM = 10
+    HIGHSCORE_SCORERANDOM_MULTIPLIER = (2, 3.6)
+    HIGHSCORE_SCORERANDOM_MINIMUM = 20
 
     #-------------------------DERIVED-------------------------#
     GROUND_Y = -GeneralConstant.BALL_RADIUS
@@ -42,30 +47,41 @@ class InterfaceConstant:
     DEBUG_TEXT_SEP = 20
     DEBUG_TEXT_ALPHA = 150
     DEBUG_TEXT_LASTING_TIME = 0.5
-    GAMEOVER_DISPLAY_POS = Vector(560, 580)
+    START_DISPLAY_POS = Vector(GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 580)
+    GAMEOVER_DISPLAY_POS = Vector(GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 580)
     GAMEOVER_FADEOUT_SECOND = 0.7
     RESTART_SCENE_SECOND = 0.5
     STARTING_TEXT_CENTER = 575
     SELECTION_MENU_XPOS = 40
     SELECTION_MENU_ARROW_XPOS = 26
     SELECTION_MENU_SEP = 25
+    SELECTION_PRESSED_OFFSET = Vector(-1, 1)
     # Option
-    OPTION_TITLE_POS = GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 100
+    OPTION_TITLE_POS = Vector(GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 100)
     OPTION_SEP = 50
     OPTION_TEXT_XPOS = 350
     OPTION_ARROW_XPOS = OPTION_TEXT_XPOS - 20
-    OPTION_SHADOW_OFFSET = Vector(-1, 1)
+    OPTION_PRESSED_OFFSET = Vector(-1, 1)
     OPTION_BACK_EXTRA_SEP = 0.5
     OPTION_BARS_XPOS = 690
     OPTION_VOLUME_BUTTON_RADIUS = 24
     OPTION_VOLUME_TICKER_STARTCOOLDOWN = 0.4
     OPTION_VOLUME_TICKER_TICK = 0.02
+    # Control
+    CONTROL_TITLE_POS = Vector(GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 100)
+    CONTROL_BACK_TEXT_POS = Vector(GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 580)
+    CONTROL_PRESSED_OFFSET = Vector(-1, 1)
+    CONTROL_ARROW_OFFSET = Vector(-20, 0)
+    CONTROL_ICON_TEXT_HORIZONTAL_SEP = 20
+    CONTROL_ICON_TEXT_VERTICAL_SEP = 100
+    CONTROL_ICON_TEXT_YPOS = 225
 
     #-------------------------DERIVED-------------------------#
     # Game
     DEFAULT_SCREEN_DIAGONAL = Vector(GeneralConstant.DEFAULT_SCREEN_SIZE).magnitude
     SCREEN_OFFSET = -(Vector(GeneralConstant.DEFAULT_SCREEN_SIZE) // 2)
     DT = 1 / INGAME_FPS
+    SCOREBOARD_DISPLAY_POS = Vector(GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 0)
     # Option
     OPTION_YCENTER = GeneralConstant.DEFAULT_SCREEN_SIZE[1] // 2
     
@@ -75,7 +91,11 @@ class SettingConstant:
     DEFAULT_FPS = 120
     DEFAULT_BGM_VOLUME = 100
     DEFAULT_SE_VOLUME = 100
-    FPS_CHOICES = (30, 60, 90, 120, 180)
+    FPS_CHOICES = (30, 60, 90, 120)
 
     #-------------------------DERIVED-------------------------#
     FPS_CHOICE_NUMBER = len(FPS_CHOICES)
+
+
+class ErrorlogConstant:
+    MAX_LOGS = 50
