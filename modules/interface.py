@@ -2,7 +2,7 @@ import pygame
 from pygame import Surface
 from pygame.event import Event
 from pygame import draw
-from game import Game, get_level, get_height
+from game import Game, HighScore, get_level, get_height
 from display import (
     Alignment, 
     Displayable, 
@@ -12,7 +12,7 @@ from display import (
     StaticDisplayable
 )
 from language import TranslateName
-from resources import Font, Texture, Color, Path, MAIN_SCREEN, CENTER_SCREEN
+from resources import Font, Texture, Color, Path, MAIN_SCREEN
 from vector import Vector, NumberType
 from physics import _to_degree
 from language import Language
@@ -25,12 +25,19 @@ from abc import ABC, abstractmethod
 from typing import Any, NamedTuple, Union, Iterable, Generator, Literal
 
 
-type Request = Union[GameRequest, OptionRequest]
+type Request = Union[GameRequest, OptionRequest, AchievementRequest, ControlRequest]
+BASIC_ALIGNMENT = Alignment(
+    Alignment.Mode.CENTERED, 
+    Alignment.Mode.CENTERED, 
+    Alignment.Flag.REFERENCED, 
+    offset=Constant.SCREEN_OFFSET
+)
 
 class GameRequest(Enum):
     GOTO_OPTIONS = auto()
     GOTO_ACHIEVEMENT = auto()
     GOTO_CONTROLS = auto()
+    UPDATE_HIGHSCORE = auto()
     QUIT = auto()
 
 
@@ -47,6 +54,34 @@ class OptionRequest(Enum):
     CHANGE_LANGUAGE = auto()
     CHANGE_FPS = auto()
     BACK = auto()
+    QUIT = auto()
+
+
+class AchievementRequest(Enum):
+    @staticmethod
+    def _generate_next_value_(name: str, start: int, count: int, last_values: list[Any]) -> Any:
+        return Enum._generate_next_value_(
+            name, 
+            len(GameRequest) + len(OptionRequest) + 1, 
+            count, 
+            last_values
+        )
+    
+    QUIT = auto()
+
+
+class ControlRequest(Enum):
+    @staticmethod
+    def _generate_next_value_(name: str, start: int, count: int, last_values: list[Any]) -> Any:
+        return Enum._generate_next_value_(
+            name, 
+            len(GameRequest) + len(OptionRequest) + len(AchievementRequest) + 1, 
+            count, 
+            last_values
+        )
+    
+    BACK = auto()
+    QUIT = auto()
 
 
 class Interface(ABC):
@@ -74,7 +109,7 @@ class Interface(ABC):
         pass
 
     @abstractmethod
-    def display(main_screen: Surface, center_screen: Surface, *args, **kwargs) -> None:
+    def display(self, main_screen: Surface, center_screen: Surface, *args, **kwargs) -> None:
         pass
 
 
@@ -83,13 +118,29 @@ class GameInterface(Interface):
         EMPTY = auto()
         GAME_SPACE = auto()
         GAME_GAMEOVER = auto()
+        GAME_TO_RESTART_SCREEN = auto()
         GAME_RESTART = auto()
         GAME_RELOAD = auto()
         GAME_RELOADED = auto()
         GAME_DEBUG = auto()
+        GAME_HIGHSCORE_UPDATE = auto()
         SELECTION_UP = auto()
         SELECTION_DOWN = auto()
         SELECTION_ENTER = auto()
+        CURSOR_ON_EMPTY = auto()
+        CURSOR_ON_OPTION = auto()
+        CURSOR_ON_ACHIEVEMENT = auto()
+        CURSOR_ON_CONTROL = auto()
+        CURSOR_ON_QUIT = auto()
+        CLICK_ON_OPTIONS = auto()
+        CLICK_ON_ACHIEVEMENT = auto()
+        CLICK_ON_CONTROL = auto()
+        CLICK_ON_QUIT = auto()
+        CLICKRELEASE_ON_OPTIONS = auto()
+        CLICKRELEASE_ON_ACHIEVEMENT = auto()
+        CLICKRELEASE_ON_CONTROLS = auto()
+        CLICKRELEASE_ON_QUIT = auto()
+        CLICKRELEASE = auto()
         QUIT = auto()
 
     class GameStatus(Flag):
@@ -97,8 +148,14 @@ class GameInterface(Interface):
         STARTING = auto()
         STARTED = auto()
         GAMEOVER = auto()
+        RESTART_SCREEN = auto()
         RESTARTING = auto()
         RELOADING = auto()
+        PRESSING_OPTIONS = auto()
+        PRESSING_ACHIEVEMENT = auto()
+        PRESSING_CONTROLS = auto()
+        PRESSING_QUIT = auto()
+        PRESSING = PRESSING_OPTIONS | PRESSING_ACHIEVEMENT | PRESSING_CONTROLS | PRESSING_QUIT
 
     class PageSelection(IntEnum):
         OPTIONS = auto()
@@ -118,7 +175,7 @@ class GameInterface(Interface):
 
     class DebugMsgTimer(NamedTuple):
         msg: str
-        timer: Timer
+        ticker: Ticker
 
     GE = GameEvent
     GS = GameStatus
@@ -133,20 +190,16 @@ class GameInterface(Interface):
         self.status = GI.GS.LOADED
         self.bounce = False
         self.debugging = False
-        self.record_height = 0
+        self.record_height = HighScore.load()
         self.height = 0
         self.selection = GI.PS.OPTIONS
         self.requests: deque[GameRequest] = deque()
         self.debug_msgs: deque[GI.DebugMsgTimer] = deque()
+        self.last_mouse_pos = (0, 0)
         self.ball_display = DisplayableBall(
             Texture.BALL_FRAME, 
             Texture.BALL_SURFACE, 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                offset=Constant.SCREEN_OFFSET
-            )
+            BASIC_ALIGNMENT
         )
         self.ground_display = Displayable(
             Texture.GROUND, 
@@ -159,17 +212,10 @@ class GameInterface(Interface):
                 offset=Constant.SCREEN_OFFSET
             )
         )
-        self.slab_display = Displayable(
-            Texture.SLAB, Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED,
-                offset=Constant.SCREEN_OFFSET
-            )
-        )
+        self.slab_display = Displayable(Texture.SLAB, BASIC_ALIGNMENT)
         self.scoreboard_bg = StaticDisplayable(
             Texture.SCOREBOARD, 
-            Vector(560, 0), 
+            Constant.SCOREBOARD_DISPLAY_POS, 
             Alignment(
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.TOP, 
@@ -180,13 +226,8 @@ class GameInterface(Interface):
             )
         )
         self.start_display = DisplayableTranslatable(
-            Vector(560, 580), 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                offset=Constant.SCREEN_OFFSET
-            ), 
+            Constant.START_DISPLAY_POS, 
+            BASIC_ALIGNMENT, 
             Font.Game.START_TEXT, 
             TranslateName.game_start_text, 
             language, 
@@ -203,9 +244,23 @@ class GameInterface(Interface):
             self.language, 
             Color.Game.RESTART_TEXT
         )
+        def pressed(text: DisplayableTranslatable) -> DisplayableTranslatable:
+            return DisplayableTranslatable(
+                text.offset + Constant.SELECTION_PRESSED_OFFSET, 
+                text.alignment, 
+                text.font, 
+                text.translation, 
+                text.language, 
+                Color.Game.SELECTION_MENU_TEXT_PRESSED
+            )
         self.selection_displays = (
             DisplayableTranslatable(
-                Vector.zero, 
+                Vector(
+                    Constant.SELECTION_MENU_XPOS, 
+                    Constant.STARTING_TEXT_CENTER 
+                        + Constant.SELECTION_MENU_SEP 
+                        * (GI.PS.OPTIONS - (len(GI.PS) + 1) / 2) 
+                ), 
                 Alignment(
                     Alignment.Mode.CENTERED, 
                     Alignment.Mode.LEFT, 
@@ -218,7 +273,12 @@ class GameInterface(Interface):
                 Color.Game.SELECTION_MENU_TEXT
             ), 
             DisplayableTranslatable(
-                Vector.zero, 
+                Vector(
+                    Constant.SELECTION_MENU_XPOS, 
+                    Constant.STARTING_TEXT_CENTER 
+                        + Constant.SELECTION_MENU_SEP 
+                        * (GI.PS.ACHIEVEMENT - (len(GI.PS) + 1) / 2) 
+                ), 
                 Alignment(
                     Alignment.Mode.CENTERED, 
                     Alignment.Mode.LEFT, 
@@ -231,7 +291,12 @@ class GameInterface(Interface):
                 Color.Game.SELECTION_MENU_TEXT
             ), 
             DisplayableTranslatable(
-                Vector.zero, 
+                Vector(
+                    Constant.SELECTION_MENU_XPOS, 
+                    Constant.STARTING_TEXT_CENTER 
+                        + Constant.SELECTION_MENU_SEP 
+                        * (GI.PS.CONTROLS - (len(GI.PS) + 1) / 2) 
+                ), 
                 Alignment(
                     Alignment.Mode.CENTERED, 
                     Alignment.Mode.LEFT, 
@@ -244,7 +309,12 @@ class GameInterface(Interface):
                 Color.Game.SELECTION_MENU_TEXT
             ), 
             DisplayableTranslatable(
-                Vector.zero, 
+                Vector(
+                    Constant.SELECTION_MENU_XPOS, 
+                    Constant.STARTING_TEXT_CENTER 
+                        + Constant.SELECTION_MENU_SEP 
+                        * (GI.PS.QUIT - (len(GI.PS) + 1) / 2) 
+                ), 
                 Alignment(
                     Alignment.Mode.CENTERED, 
                     Alignment.Mode.LEFT, 
@@ -257,14 +327,12 @@ class GameInterface(Interface):
                 Color.Game.SELECTION_MENU_TEXT
             )
         )
+        self.pressed_selection_displays = tuple(
+            pressed(display) for display in self.selection_displays
+        )
         self.selection_menu_arrow_display = Displayable(
             Texture.SELECTION_MENU_ARROW, 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                offset=Constant.SCREEN_OFFSET
-            )
+            BASIC_ALIGNMENT
         )
         self.blackscene_display = StaticDisplayable(
             Surface(GeneralConstant.DEFAULT_SCREEN_SIZE), 
@@ -286,7 +354,7 @@ class GameInterface(Interface):
         for _ in range(ticks - 1):
             self.game.tick(Constant.DT, False)
         self.height = max(self.height, self.game.ball.pos_y)
-        if not GI.GameStatus.GAMEOVER in self.status and self.game.gameover:
+        if not self.status & (GI.GS.GAMEOVER | GI.GS.RESTART_SCREEN) and self.game.gameover:
             self.__handle_event(GI.GE.GAME_GAMEOVER)
         self.__read_debug_msg()
 
@@ -307,22 +375,34 @@ class GameInterface(Interface):
 
     def __handle_event(self, event: GameEvent) -> None:
         match event:
-            case GI.GE.GAME_SPACE if GI.GS.GAMEOVER in self.status \
-                and not GI.GS.RESTARTING in self.status:
-                if self.transform_timer.read() > 2:
-                    self.__handle_event(GI.GE.GAME_RESTART)
+            case GI.GE.GAME_SPACE if (
+                GI.GS.RESTART_SCREEN in self.status
+                and not GI.GS.RESTARTING in self.status
+            ):
+                self.__handle_event(GI.GE.GAME_RESTART)
+            case GI.GE.GAME_SPACE if (GI.GS.STARTING | GI.GS.STARTED) & self.status:
+                self.bounce = True
             case GI.GE.GAME_SPACE if (GI.GS.RELOADING | GI.GS.LOADED) & self.status:
                 self.ingame_timer.start()
+                self.__handle_event(GI.GE.CURSOR_ON_EMPTY)
+                self.__handle_event(GI.GE.CLICKRELEASE)
                 self.status |= GI.GS.STARTING | GI.GS.STARTED
-                self.bounce = True
-            case GI.GE.GAME_SPACE if (GI.GS.STARTING | GI.GS.STARTED) & self.status:
                 self.bounce = True
             case GI.GE.GAME_DEBUG:
                 self.debugging = not self.debugging
+            case GI.GE.GAME_HIGHSCORE_UPDATE:
+                self.record_height = int(self.height)
+                HighScore.save(self.record_height)
             case GI.GE.GAME_GAMEOVER:
                 self.ingame_timer.pause()
                 self.transform_timer.restart()
                 self.status = GI.GS.GAMEOVER
+            case GI.GE.GAME_TO_RESTART_SCREEN:
+                self.height = int(self.height)
+                if self.height > self.record_height:
+                    self.__handle_event(GI.GE.GAME_HIGHSCORE_UPDATE)
+                self.transform_timer.restart()
+                self.status = GI.GS.RESTART_SCREEN
             case GI.GE.GAME_RESTART:
                 self.blackscene_display.surface.fill(Color.BLACK)
                 self.transform_timer.restart()
@@ -337,16 +417,25 @@ class GameInterface(Interface):
                 (GI.GS.RELOADING | GI.GS.LOADED) & self.status
                 and not (GI.GS.STARTING | GI.GS.STARTED) & self.status
             ):
-                self.selection = self.selection.upper()
+                if (upper := self.selection.upper()) == self.selection:
+                    return
+                self.selection = upper
+                self.__handle_event(GI.GE.CLICKRELEASE)
+                self.add_event(Event(pygame.MOUSEMOTION, pos=self.last_mouse_pos))
             case GI.GE.SELECTION_DOWN if (
                 (GI.GS.RELOADING | GI.GS.LOADED) & self.status
                 and not (GI.GS.STARTING | GI.GS.STARTED) & self.status
             ):
-                self.selection = self.selection.lower()
+                if (lower := self.selection.lower()) == self.selection:
+                    return
+                self.selection = lower
+                self.__handle_event(GI.GE.CLICKRELEASE)
+                self.add_event(Event(pygame.MOUSEMOTION, pos=self.last_mouse_pos))
             case GI.GE.SELECTION_ENTER if (
                 (GI.GS.RELOADING | GI.GS.LOADED) & self.status
                 and not (GI.GS.STARTING | GI.GS.STARTED) & self.status
             ):
+                self.status &= ~GI.GS.PRESSING
                 match self.selection:
                     case GI.PS.OPTIONS:
                         self.requests.append(GameRequest.GOTO_OPTIONS)
@@ -356,10 +445,58 @@ class GameInterface(Interface):
                         self.requests.append(GameRequest.GOTO_CONTROLS)
                     case GI.PS.QUIT:
                         self.requests.append(GameRequest.QUIT)
+            case GI.GE.CURSOR_ON_EMPTY:
+                for selection_display in self.selection_displays:
+                    selection_display.color = Color.Game.SELECTION_MENU_TEXT
+            case (
+                GI.GE.CURSOR_ON_OPTION | GI.GE.CURSOR_ON_ACHIEVEMENT 
+                | GI.GE.CURSOR_ON_CONTROL | GI.GE.CURSOR_ON_QUIT
+            ):
+                for i, selection_display in enumerate(self.selection_displays):
+                    if i == event.value - GI.GE.CURSOR_ON_OPTION.value:
+                        selection_display.color = Color.Game.SELECTION_MENU_TEXT_SELECTING
+                    else:
+                        selection_display.color = Color.Game.SELECTION_MENU_TEXT
+            case GI.GE.CLICK_ON_OPTIONS:
+                self.__handle_event(GI.GE.CURSOR_ON_EMPTY)
+                self.status |= GI.GS.PRESSING_OPTIONS
+            case GI.GE.CLICK_ON_ACHIEVEMENT:
+                self.__handle_event(GI.GE.CURSOR_ON_EMPTY)
+                self.status |= GI.GS.PRESSING_ACHIEVEMENT
+            case GI.GE.CLICK_ON_CONTROL:
+                self.__handle_event(GI.GE.CURSOR_ON_EMPTY)
+                self.status |= GI.GS.PRESSING_CONTROLS
+            case GI.GE.CLICK_ON_QUIT:
+                self.__handle_event(GI.GE.CURSOR_ON_EMPTY)
+                self.status |= GI.GS.PRESSING_QUIT
+            case GI.GE.CLICKRELEASE_ON_OPTIONS:
+                if GI.GS.PRESSING_OPTIONS in self.status:
+                    self.selection = GI.PS.OPTIONS
+                    self.requests.append(GameRequest.GOTO_OPTIONS)
+                self.status &= ~GI.GS.PRESSING
+            case GI.GE.CLICKRELEASE_ON_ACHIEVEMENT:
+                if GI.GS.PRESSING_ACHIEVEMENT in self.status:
+                    self.selection = GI.PS.ACHIEVEMENT
+                    self.requests.append(GameRequest.GOTO_ACHIEVEMENT)
+                self.status &= ~GI.GS.PRESSING
+            case GI.GE.CLICKRELEASE_ON_CONTROLS:
+                if GI.GS.PRESSING_CONTROLS in self.status:
+                    self.selection = GI.PS.CONTROLS
+                    self.requests.append(GameRequest.GOTO_CONTROLS)
+                self.status &= ~GI.GS.PRESSING
+            case GI.GE.CLICKRELEASE_ON_QUIT:
+                if GI.GS.PRESSING_QUIT in self.status:
+                    self.selection = GI.PS.QUIT
+                    self.requests.append(GameRequest.QUIT)
+                self.status &= ~GI.GS.PRESSING
+            case GI.GE.CLICKRELEASE:
+                self.status &= ~GI.GS.PRESSING
             case GI.GE.QUIT:
-                pass
+                self.requests.append(GameRequest.QUIT)
 
     def __event_converter(self, event: Event) -> GameEvent:
+        if event.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP):
+            self.last_mouse_pos = event.pos
         match event.type:
             case pygame.KEYDOWN:
                 match event.key:
@@ -373,18 +510,35 @@ class GameInterface(Interface):
                         return GI.GE.SELECTION_DOWN
                     case pygame.K_RETURN:
                         return GI.GE.SELECTION_ENTER
+            case pygame.MOUSEBUTTONDOWN if event.button == pygame.BUTTON_LEFT:
+                pos = Vector(event.pos)
+                for i, selection_display in enumerate(self.selection_displays):
+                    if selection_display.contains(MAIN_SCREEN, pos):
+                        return GI.GE(GI.GE.CLICK_ON_OPTIONS.value + i)
+            case pygame.MOUSEBUTTONUP if event.button == pygame.BUTTON_LEFT:
+                pos = Vector(event.pos)
+                for i, selection_display in enumerate(self.selection_displays):
+                    if selection_display.contains(MAIN_SCREEN, pos):
+                        return GI.GE(GI.GE.CLICKRELEASE_ON_OPTIONS.value + i)
+                return GI.GE.CLICKRELEASE
+            case pygame.MOUSEMOTION if not self.status & (GI.GS.STARTED | GI.GS.PRESSING):
+                position = Vector(event.pos)
+                for i, selection_display in enumerate(self.selection_displays):
+                    if selection_display.contains(MAIN_SCREEN, position):
+                        return GI.GE(GI.GE.CURSOR_ON_OPTION.value + i)
+                return GI.GE.CURSOR_ON_EMPTY
             case pygame.QUIT:
                 return GI.GE.QUIT
         return GI.GE.EMPTY
     
     def __read_debug_msg(self) -> None:
         self.debug_msgs.extend(
-            GI.DebugMsgTimer(text, Timer(start=True)) for text in self.game.ball.debug_msgs
+            GI.DebugMsgTimer(
+                text, 
+                Ticker(Constant.DEBUG_TEXT_LASTING_TIME, start=True)
+            ) for text in self.game.ball.debug_msgs
         )
-        while (
-            self.debug_msgs
-            and self.debug_msgs[0].timer.read() > Constant.DEBUG_TEXT_LASTING_TIME
-        ):
+        while self.debug_msgs and self.debug_msgs[0].ticker.tick():
             self.debug_msgs.popleft()
 
     def display(
@@ -417,7 +571,9 @@ class GameInterface(Interface):
         if (GI.GS.RELOADING | GI.GS.LOADED | GI.GS.STARTING) & self.status:
             self.__starting_display(center_screen)
         if GI.GS.GAMEOVER in self.status:
-            self.__gameover_display(center_screen)
+            self.__gameover_tick()
+        if GI.GS.RESTART_SCREEN in self.status:
+            self.__restart_screen_display(center_screen)
         self.__scoreboard_display(center_screen)
         if GI.GS.RESTARTING in self.status:
             self.__restarting_display(center_screen)
@@ -431,15 +587,17 @@ class GameInterface(Interface):
             return
         self.start_display.offset = Vector(560, Constant.STARTING_TEXT_CENTER + offset)
         self.start_display.display(screen, self.language)
-        for i, display in enumerate(self.selection_displays, start=1):
-            display.offset = Vector(
-                Constant.SELECTION_MENU_XPOS, 
-                Constant.STARTING_TEXT_CENTER 
-                    + Constant.SELECTION_MENU_SEP * (i - (len(GI.PS) + 1) / 2) 
-                    + offset
-            )
-            display.display(screen, self.language)
-            display.color = Color.Game.SELECTION_MENU_TEXT
+        for i in range(len(self.selection_displays)):
+            if (GI.GS(GI.GS.PRESSING_OPTIONS.value << i) in self.status):
+                self.pressed_selection_displays[i].display(screen, self.language)
+            else:
+                self.selection_displays[i].offset = Vector(
+                    Constant.SELECTION_MENU_XPOS, 
+                    Constant.STARTING_TEXT_CENTER 
+                        + Constant.SELECTION_MENU_SEP * (i + 1 - (len(GI.PS) + 1) / 2) 
+                        + offset
+                )
+                self.selection_displays[i].display(screen, self.language)
         self.selection_menu_arrow_display.display(
             screen, 
             Vector(
@@ -579,8 +737,12 @@ class GameInterface(Interface):
                 Constant.DEBUG_TEXT_ALPHA
             ).display(screen)
 
-    def __gameover_display(self, screen: Surface) -> None:
-        if (t := self.transform_timer.read()) > 2 and int(t / 0.5) % 2 == 0:
+    def __gameover_tick(self) -> None:
+        if self.transform_timer.read() > 2:
+            self.__handle_event(GI.GE.GAME_TO_RESTART_SCREEN)
+
+    def __restart_screen_display(self, screen: Surface) -> None:
+        if int(self.transform_timer.read() / 0.5) % 2 == 0:
             self.gameover_display.language = self.language
             background = Surface(
                 (Vector(self.gameover_display.surface.get_size()) + Vector(10, 10)).inttuple
@@ -591,12 +753,7 @@ class GameInterface(Interface):
             StaticDisplayable(
                 background, 
                 Constant.GAMEOVER_DISPLAY_POS, 
-                Alignment(
-                    Alignment.Mode.CENTERED, 
-                    Alignment.Mode.CENTERED, 
-                    Alignment.Flag.REFERENCED, 
-                    offset=Constant.SCREEN_OFFSET
-                )
+                BASIC_ALIGNMENT
             ).display(screen)
 
     def __restarting_display(self, screen: Surface) -> None:
@@ -605,16 +762,7 @@ class GameInterface(Interface):
         )
         background.fill(Color.Game.RESTART_BACKGROUND)
         self.gameover_display.display(background, self.language)
-        StaticDisplayable(
-            background, 
-            Vector(560, 580), 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                offset=Constant.SCREEN_OFFSET
-            )
-        ).display(screen)
+        StaticDisplayable(background, Vector(560, 580), BASIC_ALIGNMENT).display(screen)
 
         self.blackscene_alpha = int(
             self.transform_timer.read() * 255 / Constant.GAMEOVER_FADEOUT_SECOND
@@ -685,16 +833,10 @@ class OptionInterface(Interface):
         CHANGE_BGM = auto()
         CHANGE_SE = auto()
         BACK = auto()
+        QUIT = auto()
 
     class OptionStatus(Flag):
         EMPTY = 0
-        CURSOR_ON_LANGUAGE = auto()
-        CURSOR_ON_FPS = auto()
-        CURSOR_ON_BGM = auto()
-        CURSOR_ON_SE = auto()
-        CURSOR_ON_BACK = auto()
-        CURSOR_ON = \
-            CURSOR_ON_LANGUAGE | CURSOR_ON_FPS | CURSOR_ON_BGM | CURSOR_ON_SE | CURSOR_ON_BACK
         PRESSING_LANGUAGE = auto()
         PRESSING_FPS = auto()
         PRESSING_BGM = auto()
@@ -745,26 +887,21 @@ class OptionInterface(Interface):
             starting_cooldown=Constant.OPTION_VOLUME_TICKER_STARTCOOLDOWN
         )
         self.title_display = DisplayableTranslatable(
-            Vector(Constant.OPTION_TITLE_POS), 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                offset=Constant.SCREEN_OFFSET
-            ), 
+            Constant.OPTION_TITLE_POS, 
+            BASIC_ALIGNMENT, 
             Font.Option.TITLE, 
             TranslateName.option_title, 
             self.settings.language, 
             Color.Option.TITLE
         )
-        def shadowed(text: DisplayableTranslatable) -> DisplayableTranslatable:
+        def pressed(text: DisplayableTranslatable) -> DisplayableTranslatable:
             return DisplayableTranslatable(
-                text.offset + Constant.OPTION_SHADOW_OFFSET, 
+                text.offset + Constant.OPTION_PRESSED_OFFSET, 
                 text.alignment, 
                 text.font, 
                 text.translation, 
                 text.language, 
-                Color.Option.TEXT_SHADOW
+                Color.Option.TEXT_PRESSED
             )
         selections = len(OI.PS) - 1
         self.language_text = DisplayableTranslatable(
@@ -784,7 +921,7 @@ class OptionInterface(Interface):
             self.settings.language, 
             Color.Option.TEXT
         )
-        self.shadowed_language_text = shadowed(self.language_text)
+        self.pressed_language_text = pressed(self.language_text)
         self.FPS_text = DisplayableTranslatable(
             Vector(
                 Constant.OPTION_TEXT_XPOS, 
@@ -802,7 +939,7 @@ class OptionInterface(Interface):
             self.settings.language, 
             Color.Option.TEXT
         )
-        self.shadowed_FPS_text = shadowed(self.FPS_text)
+        self.pressed_FPS_text = pressed(self.FPS_text)
         self.BGM_volume_text = DisplayableTranslatable(
             Vector(
                 Constant.OPTION_TEXT_XPOS, 
@@ -820,7 +957,7 @@ class OptionInterface(Interface):
             self.settings.language, 
             Color.Option.TEXT
         )
-        self.shadowed_BGM_volume_text = shadowed(self.BGM_volume_text)
+        self.pressed_BGM_volume_text = pressed(self.BGM_volume_text)
         self.SE_volume_text = DisplayableTranslatable(
             Vector(
                 Constant.OPTION_TEXT_XPOS, 
@@ -838,7 +975,7 @@ class OptionInterface(Interface):
             self.settings.language, 
             Color.Option.TEXT
         )
-        self.shadowed_SE_volume_text = shadowed(self.SE_volume_text)
+        self.pressed_SE_volume_text = pressed(self.SE_volume_text)
         self.back_text = DisplayableTranslatable(
             Vector(
                 Constant.OPTION_TEXT_XPOS, 
@@ -857,16 +994,8 @@ class OptionInterface(Interface):
             self.settings.language, 
             Color.Option.TEXT
         )
-        self.shadowed_back_text = shadowed(self.back_text)
-        self.arrow_display = Displayable(
-            Texture.SELECTION_MENU_ARROW, 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                offset=Constant.SCREEN_OFFSET
-            )
-        )
+        self.pressed_back_text = pressed(self.back_text)
+        self.arrow_display = Displayable(Texture.SELECTION_MENU_ARROW, BASIC_ALIGNMENT)
         self.language_bar = StaticDisplayable(
             Texture.OPTION_SELECTION_BAR, 
             Vector(
@@ -874,12 +1003,7 @@ class OptionInterface(Interface):
                 Constant.OPTION_YCENTER 
                     + (OI.PS.LANGUAGE - (selections + 1) / 2) * Constant.OPTION_SEP
             ), 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                offset=Constant.SCREEN_OFFSET
-            )
+            BASIC_ALIGNMENT
         )
         self.language_bar_left_arrow = StaticDisplayable(
             Texture.OPTION_SELECTION_LEFT_ARROW, 
@@ -943,12 +1067,7 @@ class OptionInterface(Interface):
                 Constant.OPTION_YCENTER 
                     + (OI.PS.LANGUAGE - (selections + 1) / 2) * Constant.OPTION_SEP
             ), 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                offset=Constant.SCREEN_OFFSET
-            ), 
+            BASIC_ALIGNMENT, 
             Font.Option.BARTEXT, 
             TranslateName.name, 
             self.settings.language, 
@@ -961,12 +1080,7 @@ class OptionInterface(Interface):
                 Constant.OPTION_YCENTER 
                     + (OI.PS.FPS - (selections + 1) / 2) * Constant.OPTION_SEP
             ), 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                offset=Constant.SCREEN_OFFSET
-            )
+            BASIC_ALIGNMENT
         )
         self.FPS_bar_left_arrow = StaticDisplayable(
             Texture.OPTION_SELECTION_LEFT_ARROW, 
@@ -1030,12 +1144,7 @@ class OptionInterface(Interface):
                 Constant.OPTION_YCENTER 
                     + (OI.PS.FPS - (selections + 1) / 2) * Constant.OPTION_SEP
             ), 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                offset=Constant.SCREEN_OFFSET
-            ), 
+            BASIC_ALIGNMENT, 
             Font.Option.BARTEXT, 
             str(self.settings.FPS), 
             Color.Option.BARTEXT
@@ -1047,12 +1156,7 @@ class OptionInterface(Interface):
                 Constant.OPTION_YCENTER 
                     + (OI.PS.BGM - (selections + 1) / 2) * Constant.OPTION_SEP
             ), 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                offset=Constant.SCREEN_OFFSET
-            )
+            BASIC_ALIGNMENT
         )
         self.SE_bar = StaticDisplayable(
             Texture.OPTION_VOLUME_BAR, 
@@ -1061,22 +1165,12 @@ class OptionInterface(Interface):
                 Constant.OPTION_YCENTER 
                     + (OI.PS.SE - (selections + 1) / 2) * Constant.OPTION_SEP
             ), 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                offset=Constant.SCREEN_OFFSET
-            )
+            BASIC_ALIGNMENT
         )
         self.Volume_button = DisplayableBall(
             Texture.OPTION_VOLUME_POINT_FRAME, 
             Texture.OPTION_VOLUME_POINT_SURFACE, 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                offset=Constant.SCREEN_OFFSET
-            )
+            BASIC_ALIGNMENT
         )
         self.volume_button_offset = Vector.zero
     
@@ -1110,12 +1204,12 @@ class OptionInterface(Interface):
                 Vector(
                     Constant.OPTION_ARROW_XPOS, 
                     Constant.OPTION_YCENTER 
-                        + Constant.OPTION_SEP * (self.selection - (len(GI.PS) + 1) / 2) 
+                        + Constant.OPTION_SEP * (self.selection - len(OI.PS) / 2) 
                 )
             )
     
     def add_event(self, event: Event) -> None:
-        if event.type == pygame.MOUSEMOTION:
+        if event.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONUP, pygame.MOUSEBUTTONDOWN):
             self.last_mouse_pos = event.pos
         return self.__handle_event(self.__event_converter(event))
 
@@ -1135,42 +1229,36 @@ class OptionInterface(Interface):
                 self.BGM_volume_text.color = Color.Option.TEXT
                 self.SE_volume_text.color = Color.Option.TEXT
                 self.back_text.color = Color.Option.TEXT
-                self.status &= ~OI.OS.CURSOR_ON
             case OI.OE.CURSOR_ON_LANGUAGE:
                 self.language_text.color = Color.Option.TEXT_SELECTING
                 self.FPS_text.color = Color.Option.TEXT
                 self.BGM_volume_text.color = Color.Option.TEXT
                 self.SE_volume_text.color = Color.Option.TEXT
                 self.back_text.color = Color.Option.TEXT
-                self.status &= ~OI.OS.CURSOR_ON | OI.OS.CURSOR_ON_LANGUAGE
             case OI.OE.CURSOR_ON_FPS:
                 self.language_text.color = Color.Option.TEXT
                 self.FPS_text.color = Color.Option.TEXT_SELECTING
                 self.BGM_volume_text.color = Color.Option.TEXT
                 self.SE_volume_text.color = Color.Option.TEXT
                 self.back_text.color = Color.Option.TEXT
-                self.status &= ~OI.OS.CURSOR_ON | OI.OS.CURSOR_ON_FPS
             case OI.OE.CURSOR_ON_BGM:
                 self.language_text.color = Color.Option.TEXT
                 self.FPS_text.color = Color.Option.TEXT
                 self.BGM_volume_text.color = Color.Option.TEXT_SELECTING
                 self.SE_volume_text.color = Color.Option.TEXT
                 self.back_text.color = Color.Option.TEXT
-                self.status &= ~OI.OS.CURSOR_ON | OI.OS.CURSOR_ON_BGM
             case OI.OE.CURSOR_ON_SE:
                 self.language_text.color = Color.Option.TEXT
                 self.FPS_text.color = Color.Option.TEXT
                 self.BGM_volume_text.color = Color.Option.TEXT
                 self.SE_volume_text.color = Color.Option.TEXT_SELECTING
                 self.back_text.color = Color.Option.TEXT
-                self.status &= ~OI.OS.CURSOR_ON | OI.OS.CURSOR_ON_SE
             case OI.OE.CURSOR_ON_BACK:
                 self.language_text.color = Color.Option.TEXT
                 self.FPS_text.color = Color.Option.TEXT
                 self.BGM_volume_text.color = Color.Option.TEXT
                 self.SE_volume_text.color = Color.Option.TEXT
                 self.back_text.color = Color.Option.TEXT_SELECTING
-                self.status &= ~OI.OS.CURSOR_ON | OI.OS.CURSOR_ON_BACK
             case OI.OE.CLICK_ON_LANGUAGE:
                 self.__handle_event(OI.OE.CURSOR_ON_EMPTY)
                 self.status |= OI.OS.PRESSING_LANGUAGE
@@ -1300,11 +1388,17 @@ class OptionInterface(Interface):
                 self.last_mouse_pos = (0, 0)
                 self.settings.save()
                 self.requests.append(OptionRequest.BACK)
+            case OI.OE.QUIT:
+                self.requests.append(OptionRequest.QUIT)
 
     def __event_converter(self, event: Event) -> OptionEvent:
         match event.type:
             case pygame.KEYDOWN:
                 match event.key:
+                    case pygame.K_UP:
+                        return OI.OE.SELECTION_UP
+                    case pygame.K_DOWN:
+                        return OI.OE.SELECTION_DOWN
                     case pygame.K_LEFT:
                         match self.selection:
                             case OI.PS.LANGUAGE:
@@ -1321,10 +1415,6 @@ class OptionInterface(Interface):
                                 return OI.OE.RIGHT_SWITCH_FPS
                             case OI.PS.BGM | OI.PS.SE:
                                 return OI.OE.START_KEY_UP_VOLUME
-                    case pygame.K_UP:
-                        return OI.OE.SELECTION_UP
-                    case pygame.K_DOWN:
-                        return OI.OE.SELECTION_DOWN
                     case pygame.K_RETURN if self.selection == OI.PS.BACK:
                         return OI.OE.BACK
                     case pygame.K_ESCAPE:
@@ -1460,43 +1550,45 @@ class OptionInterface(Interface):
                     return OI.OE.CURSOR_ON_BACK
                 else:
                     return OI.OE.CURSOR_ON_EMPTY
+            case pygame.QUIT:
+                return OI.OE.QUIT
         return OI.OE.EMPTY
 
     def __text_display(self, screen: Surface) -> None:        
         if OI.OS.PRESSING_LANGUAGE in self.status:
-            self.shadowed_language_text.display(screen, self.settings.language)
+            self.pressed_language_text.display(screen, self.settings.language)
             self.language_text.language = self.settings.language
         else:
             self.language_text.display(screen, self.settings.language)
-            self.shadowed_language_text.language = self.settings.language
+            self.pressed_language_text.language = self.settings.language
         
         if OI.OS.PRESSING_FPS in self.status:
-            self.shadowed_FPS_text.display(screen, self.settings.language)
+            self.pressed_FPS_text.display(screen, self.settings.language)
             self.FPS_text.language = self.settings.language
         else:
             self.FPS_text.display(screen, self.settings.language)
-            self.shadowed_FPS_text.language = self.settings.language
+            self.pressed_FPS_text.language = self.settings.language
         
         if OI.OS.PRESSING_BGM in self.status:
-            self.shadowed_BGM_volume_text.display(screen, self.settings.language)
+            self.pressed_BGM_volume_text.display(screen, self.settings.language)
             self.BGM_volume_text.language = self.settings.language
         else:
             self.BGM_volume_text.display(screen, self.settings.language)
-            self.shadowed_BGM_volume_text.language = self.settings.language
+            self.pressed_BGM_volume_text.language = self.settings.language
         
         if OI.OS.PRESSING_SE in self.status:
-            self.shadowed_SE_volume_text.display(screen, self.settings.language)
+            self.pressed_SE_volume_text.display(screen, self.settings.language)
             self.SE_volume_text.language = self.settings.language
         else:
             self.SE_volume_text.display(screen, self.settings.language)
-            self.shadowed_SE_volume_text.language = self.settings.language
+            self.pressed_SE_volume_text.language = self.settings.language
 
         if OI.OS.PRESSING_BACK in self.status:
-            self.shadowed_back_text.display(screen, self.settings.language)
+            self.pressed_back_text.display(screen, self.settings.language)
             self.back_text.language = self.settings.language
         else:
             self.back_text.display(screen, self.settings.language)
-            self.shadowed_back_text.language = self.settings.language
+            self.pressed_back_text.language = self.settings.language
 
     def __bar_display(self, screen: Surface) -> None:
         match self.selection:
@@ -1564,11 +1656,11 @@ class OptionInterface(Interface):
         self.BGM_volume_text.language = language
         self.SE_volume_text.language = language
         self.back_text.language = language
-        self.shadowed_language_text.language = language
-        self.shadowed_FPS_text.language = language
-        self.shadowed_BGM_volume_text.language = language
-        self.shadowed_SE_volume_text.language = language
-        self.shadowed_back_text.language = language
+        self.pressed_language_text.language = language
+        self.pressed_FPS_text.language = language
+        self.pressed_BGM_volume_text.language = language
+        self.pressed_SE_volume_text.language = language
+        self.pressed_back_text.language = language
 
     def __volume_button_offset(self) -> Vector:
         if self.selection == OI.PS.BGM:
@@ -1595,7 +1687,223 @@ class OptionInterface(Interface):
         return _to_degree(
             (self.volume_button_offset.x - reference) / Constant.OPTION_VOLUME_BUTTON_RADIUS
         )
+    
+
+class AchievementInterface(Interface):
+    pass
+
+
+class ControlInterface(Interface):
+    class ControlEvent(Enum):
+        CURSOR_ON_BACK = auto()
+        CURSOR_ON_EMPTY = auto()
+        CLICK_ON_BACK = auto()
+        CLICKRELEASE_ON_BACK = auto()
+        CLICKRELEASE = auto()
+        BACK = auto()
+        QUIT = auto()
+
+    class ControlStatus(Flag):
+        EMPTY = 0
+        PRESSING_BACK = auto()
+
+    CE = ControlEvent
+    CS = ControlStatus
+
+    def __init__(self, language: Language) -> None:
+        self.status = CI.CS.EMPTY
+        self.requests: deque[ControlRequest] = deque()
+        self.last_mouse_pos = (0, 0)
+        self.title_display = DisplayableTranslatable(
+            Constant.CONTROL_TITLE_POS, 
+            BASIC_ALIGNMENT, 
+            Font.Control.TITLE, 
+            TranslateName.control_title, 
+            language, 
+            Color.Control.TITLE
+        )
+        self.back_button = DisplayableTranslatable(
+            Constant.CONTROL_BACK_TEXT_POS, 
+            BASIC_ALIGNMENT, 
+            Font.Control.BACKTEXT, 
+            TranslateName.control_back, 
+            language, 
+            Color.Control.TEXT
+        )
+        self.pressed_back_button = DisplayableTranslatable(
+            Constant.CONTROL_BACK_TEXT_POS + Constant.CONTROL_PRESSED_OFFSET,  
+            BASIC_ALIGNMENT, 
+            Font.Control.BACKTEXT, 
+            TranslateName.control_back, 
+            language, 
+            Color.Control.TEXT_PRESSED
+        )
+        self.arrow_display = StaticDisplayable(
+            Texture.SELECTION_MENU_ARROW, 
+            Constant.CONTROL_BACK_TEXT_POS 
+                - Vector(self.back_button.surface.get_size()[0] // 2, 0)
+                + Constant.CONTROL_ARROW_OFFSET, 
+            BASIC_ALIGNMENT
+        )
+        self.set_texts(language)
+
+    def set_language(self, language: Language) -> None:
+        self.title_display.language = language
+        self.back_button.language = language
+        self.pressed_back_button.language = language
+        self.arrow_display.offset = (
+            Constant.CONTROL_BACK_TEXT_POS 
+                - Vector(self.back_button.surface.get_size()[0] // 2, 0)
+                + Constant.CONTROL_ARROW_OFFSET
+        )
+        self.set_texts(language)
+
+    def set_texts(self, language: Language) -> None:
+        self.D_text = DisplayableTranslatable(
+            Vector.zero, 
+            Alignment(
+                Alignment.Mode.CENTERED, 
+                Alignment.Mode.LEFT, 
+                Alignment.Flag.REFERENCED, 
+                offset=Constant.SCREEN_OFFSET
+            ), 
+            Font.Control.TEXT, 
+            TranslateName.control_debug, 
+            language, 
+            Color.Control.TEXT
+        )
+        ICON_SIZE = Texture.CONTROL_KEY_D.get_size()[0]
+        TEXT_SIZE = self.D_text.surface.get_size()[0]
+        X_CENTER = GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2
+        ICON_XPOS = X_CENTER - Constant.CONTROL_ICON_TEXT_HORIZONTAL_SEP // 2 - TEXT_SIZE // 2
+        TEXT_XPOS = (
+            X_CENTER + ICON_SIZE // 2 
+                + Constant.CONTROL_ICON_TEXT_HORIZONTAL_SEP // 2 - TEXT_SIZE // 2
+        )
+        self.space_icon = StaticDisplayable(
+            Texture.CONTROL_KEY_SPACE, 
+            Vector(ICON_XPOS, Constant.CONTROL_ICON_TEXT_YPOS), 
+            BASIC_ALIGNMENT
+        )
+        self.space_text = DisplayableTranslatable(
+            Vector(TEXT_XPOS, Constant.CONTROL_ICON_TEXT_YPOS), 
+            Alignment(
+                Alignment.Mode.CENTERED, 
+                Alignment.Mode.LEFT, 
+                Alignment.Flag.REFERENCED, 
+                offset=Constant.SCREEN_OFFSET
+            ), 
+            Font.Control.TEXT, 
+            TranslateName.control_bounce, 
+            language, 
+            Color.Control.TEXT
+        )
+        self.escape_icon = StaticDisplayable(
+            Texture.CONTROL_KEY_ESC, 
+            Vector(
+                ICON_XPOS, 
+                Constant.CONTROL_ICON_TEXT_YPOS + Constant.CONTROL_ICON_TEXT_VERTICAL_SEP
+            ), 
+            BASIC_ALIGNMENT
+        )
+        self.escape_text = DisplayableTranslatable(
+            Vector(
+                TEXT_XPOS, 
+                Constant.CONTROL_ICON_TEXT_YPOS + Constant.CONTROL_ICON_TEXT_VERTICAL_SEP
+            ), 
+            Alignment(
+                Alignment.Mode.CENTERED, 
+                Alignment.Mode.LEFT, 
+                Alignment.Flag.REFERENCED, 
+                offset=Constant.SCREEN_OFFSET
+            ), 
+            Font.Control.TEXT, 
+            TranslateName.control_pause, 
+            language, 
+            Color.Control.TEXT
+        )
+        self.D_icon = StaticDisplayable(
+            Texture.CONTROL_KEY_D, 
+            Vector(
+                ICON_XPOS, 
+                Constant.CONTROL_ICON_TEXT_YPOS + 2 * Constant.CONTROL_ICON_TEXT_VERTICAL_SEP
+            ), 
+            BASIC_ALIGNMENT
+        )
+        self.D_text.offset = Vector(
+            TEXT_XPOS, 
+            Constant.CONTROL_ICON_TEXT_YPOS + 2 * Constant.CONTROL_ICON_TEXT_VERTICAL_SEP
+        )
+
+    def display(self, main_screen: Surface, center_screen: Surface) -> None:
+        Interface.BACKGROUND.display(main_screen)
+        Interface.BACKGROUND.display(center_screen)
+        self.title_display.display(center_screen)
+        if CI.CS.PRESSING_BACK in self.status:
+            self.pressed_back_button.display(center_screen)
+        else:
+            self.back_button.display(center_screen)
+        self.arrow_display.display(center_screen)
+        self.space_icon.display(center_screen)
+        self.space_text.display(center_screen)
+        self.escape_icon.display(center_screen)
+        self.escape_text.display(center_screen)
+        self.D_icon.display(center_screen)
+        self.D_text.display(center_screen)
+
+    def add_event(self, event: Event) -> None:
+        if event.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONUP, pygame.MOUSEBUTTONDOWN):
+            self.last_mouse_pos = event.pos
+        self.__handle_event(self.__event_converter(event))
+
+    def get_request(self) -> Generator[ControlRequest, None, None]:
+        while self.requests:
+            yield self.requests.popleft()
+
+    def __handle_event(self, event: ControlEvent) -> None:
+        match event:
+            case CI.CE.CURSOR_ON_BACK:
+                self.back_button.color = Color.Control.TEXT_SELECTING
+            case CI.CE.CURSOR_ON_EMPTY:
+                self.back_button.color = Color.Control.TEXT
+            case CI.CE.CLICK_ON_BACK:
+                self.status = CI.CS.PRESSING_BACK
+                self.__handle_event(CI.CE.CURSOR_ON_EMPTY)
+            case CI.CE.CLICKRELEASE_ON_BACK:
+                if self.status == CI.CS.PRESSING_BACK:
+                    self.__handle_event(CI.CE.BACK)
+                self.status = CI.CS.EMPTY
+            case CI.CE.CLICKRELEASE:
+                self.status = CI.CS.EMPTY
+            case CI.CE.BACK:
+                self.requests.append(ControlRequest.BACK)
+            case CI.CE.QUIT:
+                self.requests.append(ControlRequest.QUIT)
+
+    def __event_converter(self, event: Event) -> None:
+        match event.type:
+            case pygame.KEYDOWN:
+                if event.key in (pygame.K_RETURN, pygame.K_ESCAPE):
+                    return CI.CE.BACK
+            case pygame.MOUSEBUTTONDOWN if event.button == pygame.BUTTON_LEFT:
+                if self.back_button.contains(MAIN_SCREEN, Vector(event.pos)):
+                    return CI.CE.CLICK_ON_BACK
+            case pygame.MOUSEBUTTONUP if event.button == pygame.BUTTON_LEFT:
+                if self.back_button.contains(MAIN_SCREEN, Vector(event.pos)):
+                    return CI.CE.CLICKRELEASE_ON_BACK
+                return CI.CE.CLICKRELEASE
+            case pygame.MOUSEMOTION if not CI.CS.PRESSING_BACK in self.status:
+                if self.back_button.contains(MAIN_SCREEN, Vector(event.pos)):
+                    return CI.CE.CURSOR_ON_BACK
+                return CI.CE.CURSOR_ON_EMPTY
+            case pygame.QUIT:
+                return CI.CE.QUIT
+
+                
+        
 
 
 GI = GameInterface
 OI = OptionInterface
+AI = AchievementInterface
+CI = ControlInterface
