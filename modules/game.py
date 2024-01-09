@@ -1,8 +1,13 @@
 from physics import PhysicsBall, PhysicsGround, PhysicsSlab, PhysicsWall, PhysicsObject
 from vector import _isNumber, NumberType, Vector
+from errorlog import Log
 from constants import GeneralConstant, GameConstant as Constant
+from resources import Path
 from collections import deque
-from json import load
+from json import load as jsonload, dump as jsondump
+from string import ascii_letters
+from random import randint, choice
+from threading import Thread
 from typing import NamedTuple,  Callable, Iterator, Generator
 
 def get_level(height: NumberType) -> int:
@@ -27,9 +32,15 @@ class LevelGenerator:
     __current: int
     __length: int
     __repeat_from: int | None
-    __error = ParserError("Failed to parse the level file")
+
+    def set_default(self) -> None:
+        self.__levels = [_Level(**Constant.DEFAULT_LEVEL)]
+        self.__current = 0
+        self.__length = 1
+        self.__repeat_from = None
 
     def __init__(self, level_filepath: str) -> None:
+        default = _Level(**Constant.DEFAULT_LEVEL)
         def parse(level, index: int) -> _Level:
             match level:
                 case {
@@ -38,24 +49,40 @@ class LevelGenerator:
                     "separation": int(separation),
                     "velocity": velocity, 
                     **rest
-                } if length > 0 and width > 0 and separation >= 0 and _isNumber(velocity):
+                } if (
+                    length >= 2
+                    and 2 <= width <= 50
+                    and separation >= 0 
+                    and _isNumber(velocity)
+                ):
                     if rest.get("repeat_from_here") is True:
                         self.__repeat_from = index
                     return _Level(length, width, separation, velocity)
-            raise LevelGenerator.__error
+            error_args.append(f"\nInvalid level argument at level {index + 1}: {level}")
+            return default
 
         self.__levels = []
         self.__current = 0
         length = 0
         self.__repeat_from = None
-        with open(level_filepath, "r") as file:
-            levels = load(file)
+        error_args = []
+        try:
+            with open(level_filepath, "r") as file:
+                levels = jsonload(file)
+        except BaseException as e:
+            self.set_default()
+            Log.log(e)
+            return
         if not isinstance(levels, list):
-            raise LevelGenerator.__error
+            self.set_default()
+            Log.log(LevelGenerator.ParserError("Expected an array for the level file"))
+            return
         for level in levels:
             self.__levels.append(parse(level, length))
             length += 1
         self.__length = length
+        if error_args:
+            Log.log(LevelGenerator.ParserError("".join(error_args)))
 
     def generate(self) -> _Level | None:
         '''
@@ -229,3 +256,121 @@ class Game:
         yield self.wall_right
         for slab in self.slabs:
             yield slab
+
+
+class HighScore:
+    BITLENGTH_ZERO = "aBcDeFgHiJlLm"
+    BITLENGTH_ONE = "NoPqRsTuVwXyZ"
+    BITLENGTH_END = "x"
+    BITLENGTH_RANDOM = "".join(
+        set(ascii_letters).difference(BITLENGTH_ZERO, BITLENGTH_ONE, BITLENGTH_END)
+    )
+    SCORE_ZERO = "AbCdEfGhIjKlM"
+    SCORE_ONE = "nOpQrStUvWxYz"
+    SCORE_RANDOM = "".join(set(ascii_letters).difference(SCORE_ZERO, SCORE_ONE))
+
+    @classmethod
+    def encode(cls, score: int) -> str:
+        string = ""
+        bits = score.bit_length()
+        bits_bits = bits.bit_length()
+        bit_randoms = max(
+            randint(
+                int(bits_bits * Constant.HIGHSCORE_BITRANDOM_MULTIPLIER[0]), 
+                int(bits_bits * Constant.HIGHSCORE_BITRANDOM_MULTIPLIER[1])
+            ), 
+            Constant.HIGHSCORE_BITRANDOM_MINIMUM
+        )
+        score_randoms = max(
+            randint(
+                int(bits * Constant.HIGHSCORE_SCORERANDOM_MULTIPLIER[0]), 
+                int(bits * Constant.HIGHSCORE_SCORERANDOM_MULTIPLIER[1])
+            ), 
+            Constant.HIGHSCORE_SCORERANDOM_MINIMUM
+        )
+        bit_totals = bits_bits + bit_randoms
+        score_totals = bits + score_randoms
+
+        while bit_totals:
+            if randint(1, bit_totals) <= bit_randoms:
+                string += choice(cls.BITLENGTH_RANDOM)
+                bit_randoms -= 1
+            elif bits % 2 == 0:
+                string += choice(cls.BITLENGTH_ZERO)
+                bits //= 2
+            else:
+                string += choice(cls.BITLENGTH_ONE)
+                bits //= 2
+            bit_totals -= 1
+        
+        string += cls.BITLENGTH_END
+
+        while score_totals:
+            if randint(1, score_totals) <= score_randoms:
+                string += choice(cls.SCORE_RANDOM)
+                score_randoms -= 1
+            elif score % 2 == 0:
+                string += choice(cls.SCORE_ZERO)
+                score //= 2
+            else:
+                string += choice(cls.SCORE_ONE)
+                score //= 2
+            score_totals -= 1
+        
+        return string
+
+    @classmethod
+    def decode(cls, string: str) -> int:
+        default = 0
+        bits = 0
+        bitpos = 0
+        for i, c in enumerate(string):
+            if c in cls.BITLENGTH_ZERO:
+                bitpos += 1
+            elif c in cls.BITLENGTH_ONE:
+                bits += 1 << bitpos
+                bitpos += 1
+            elif c == cls.BITLENGTH_END:
+                break
+        else:
+            return default
+        bitpos = 0
+        score = 0
+        for c in string[i + 1:]:
+            if c in cls.SCORE_ZERO:
+                bitpos += 1
+                bits -= 1
+            elif c in cls.SCORE_ONE:
+                score += 1 << bitpos
+                bitpos += 1
+                bits -= 1
+        if bits != 0:
+            return default
+        return score
+    
+    @classmethod
+    def load(cls) -> int:
+        default = 0
+        try:
+            with open(Path.HIGHSCORE, "r") as file:
+                raw_score = jsonload(file)
+            match raw_score:
+                case {"highscore": str(s)}:
+                    return cls.decode(s)
+                case _:
+                    return default
+        except FileNotFoundError:
+            return default
+        except BaseException as e:
+            Log.log(e)
+            return default
+        
+    @classmethod
+    def save(cls, score: int) -> None:
+        def thread_save() -> None:
+            try:
+                with open(Path.HIGHSCORE, "w") as file:
+                    jsondump({"highscore": cls.encode(score)}, file, indent=4)
+            except BaseException as e:
+                Log.log(e)
+        Thread(target=thread_save).start()
