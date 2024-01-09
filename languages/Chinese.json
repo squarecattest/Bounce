@@ -5,5 +5,15 @@
     "game_scoreboard_record_height": "最高紀錄", 
     "game_scoreboard_height": "高度", 
     "game_scoreboard_level": "關卡", 
-    "game_scoreboard_time": "遊戲時間"
+    "game_scoreboard_time": "遊戲時間", 
+    "game_selctionmenu_options": "選項",
+    "game_selctionmenu_achievements": "成就",
+    "game_selctionmenu_controls": "操作說明",
+    "game_selctionmenu_quit": "離開遊戲", 
+    "option_title": "選項", 
+    "option_language": "語言", 
+    "option_fps": "FPS", 
+    "option_bgm": "背景音樂音量", 
+    "option_se": "音效音量", 
+    "option_back": "返回"
 }

@@ -5,5 +5,15 @@
     "game_scoreboard_record_height": "Record Height", 
     "game_scoreboard_height": "Height", 
     "game_scoreboard_level": "Level", 
-    "game_scoreboard_time": "Time"
+    "game_scoreboard_time": "Time", 
+    "game_selctionmenu_options": "Options",
+    "game_selctionmenu_achievements": "Achievements",
+    "game_selctionmenu_controls": "Controls",
+    "game_selctionmenu_quit": "Quit Game", 
+    "option_title": "Options", 
+    "option_language": "Language", 
+    "option_fps": "FPS", 
+    "option_bgm": "BGM Volume", 
+    "option_se": "SE Volume", 
+    "option_back": "Back"
 }

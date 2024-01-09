@@ -5,5 +5,15 @@
     "game_scoreboard_record_height": "最高記録", 
     "game_scoreboard_height": "高さ", 
     "game_scoreboard_level": "レベル", 
-    "game_scoreboard_time": "タイム"
+    "game_scoreboard_time": "タイム", 
+    "game_selctionmenu_options": "オプション",
+    "game_selctionmenu_achievements": "アチーブメント",
+    "game_selctionmenu_controls": "操作方法", 
+    "game_selctionmenu_quit": "ゲーム終了", 
+    "option_title": "オプション", 
+    "option_language": "言語", 
+    "option_fps": "FPS", 
+    "option_bgm": "BGM音量", 
+    "option_se": "SE音量", 
+    "option_back": "戻る"
 }
