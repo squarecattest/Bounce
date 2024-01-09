@@ -35,6 +35,12 @@ class TranslateName(StrEnum):
     option_bgm = auto()
     option_se = auto()
     option_back = auto()
+    control_title = auto()
+    control_back = auto()
+    control_bounce = auto()
+    control_pause = auto()
+    control_debug = auto()
+    
 
 class Translatable:
     '''
