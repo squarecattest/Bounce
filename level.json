@@ -1,0 +1,21 @@
+[
+    {
+        "length": 150,
+        "width": 10,
+        "separation": 70,
+        "velocity": 70
+    },
+    {
+        "length": 150,
+        "width": 10,
+        "separation": 70,
+        "velocity": -40,
+        "repeat_from_here": true
+    },
+    {
+        "length": 150,
+        "width": 10,
+        "separation": 70,
+        "velocity": 40
+    }
+]
