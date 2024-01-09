@@ -52,21 +52,43 @@ class Timer:
         else:
             self.__start_time -= seconds
 
+    @property
+    def running(self) -> bool:
+        return not self.__stop and not self.__pause
+
 
 class Ticker(Timer):
     __tick: float
     __ticks: int
-    def __init__(self, tick: float, start: bool = False) -> None:
+    def __init__(self, tick: float, start: bool = False, starting_cooldown: float = 0) -> None:
         self.__tick = tick
         self.__ticks = 0
+        self.__started = False
+        self.__starting_cooldown = starting_cooldown
         super().__init__(start)
 
     def tick(self) -> bool:
+        if not self.__started:
+            if super().read() >= self.__starting_cooldown:
+                super().offset(-self.__starting_cooldown)
+                self.__started = True
+                return self.tick()
+            return False
         if super().read() >= self.__tick:
             super().offset(-self.__tick)
             self.__ticks += 1
             return True
         return False
+    
+    def stop(self) -> None:
+        self.__ticks = 0
+        self.__started = False
+        super().stop()
+
+    def restart(self) -> None:
+        self.__ticks = 0
+        self.__started = False
+        super().restart()
     
     @property
     def ticks(self) -> int:

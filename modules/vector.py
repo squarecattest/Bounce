@@ -1,11 +1,11 @@
 from collections.abc import Iterable, Generator
-from typing import overload, Literal
+from typing import overload, Literal, Union
 from math import isfinite
 
-type NumberType = int | float
-type LengthType = int | float
-type VectorType = Vector | Iterable[NumberType]
-type SizeType = Vector | Iterable[int]
+type NumberType = Union[int, float]
+type LengthType = Union[int, float]
+type VectorType = Union[Vector, Iterable[NumberType]]
+type SizeType = Union[Vector, Iterable[int]]
 
 def _isNumber(arg, /) -> bool:
     '''

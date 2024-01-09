@@ -1,9 +1,9 @@
 from pygame import Surface, Color as pgColor
 from pygame.font import Font
 from pygame.transform import rotate
+from modules.vector import Vector
 from vector import Vector, NumberType
 from language import Language, TranslateName, Translatable
-from resources import Color
 from enum import Enum, Flag, auto
 from itertools import product
 from functools import reduce
@@ -397,7 +397,7 @@ class DisplayableText(StaticDisplayable):
             alignment: Alignment, 
             font: Font, 
             text: str = "", 
-            color: ColorType = Color.BLACK, 
+            color: ColorType = (0, 0, 0), 
             background: ColorType | None = None, 
             alpha: int = 255
     ) -> None:
@@ -428,6 +428,8 @@ class DisplayableText(StaticDisplayable):
 
     @text.setter
     def text(self, __t: str) -> None:
+        if self.__text == __t:
+            return
         self.__text = __t
         self.__update_surface()
 
@@ -437,6 +439,8 @@ class DisplayableText(StaticDisplayable):
 
     @color.setter
     def color(self, __c: ColorType) -> None:
+        if self.__color == __c:
+            return
         self.__color = __c
         self.__update_surface()
 
@@ -446,6 +450,8 @@ class DisplayableText(StaticDisplayable):
     
     @background.setter
     def background(self, __c: ColorType | None) -> None:
+        if self.__background == __c:
+            return
         self.__background = __c
         self.__update_surface()
 
@@ -455,6 +461,8 @@ class DisplayableText(StaticDisplayable):
     
     @alpha.setter
     def alpha(self, __a: int) -> None:
+        if self.__alpha == __a:
+            return
         self.__alpha = __a
         self.__update_surface()
  
@@ -493,7 +501,7 @@ class DisplayableTranslatable(DisplayableText):
             font: Font, 
             translation: TranslateName, 
             language: Language, 
-            color: ColorType = Color.BLACK, 
+            color: ColorType = (0, 0, 0), 
             background: ColorType | None = None, 
             alpha: int = 255
     ) -> None:
@@ -511,9 +519,12 @@ class DisplayableTranslatable(DisplayableText):
     def display(self, screen: Surface, language: Language = None) -> None:
         if language == self.__translatable.language or language is None:
             return super().display(screen)
-        super().__text = self.__translatable.get(language)
-        super().__update_surface()
+        self.text = self.__translatable.get(language)
         super().display(screen)
+
+    @property
+    def translation(self) -> TranslateName:
+        return self.__translatable.name
 
     @property
     def language(self) -> Language:
@@ -521,13 +532,14 @@ class DisplayableTranslatable(DisplayableText):
     
     @language.setter
     def language(self, language: Language) -> None:
-        super().__text = self.__translatable.get(language)
-        super().__update_surface()
+        if self.__translatable.language == language:
+            return
+        self.text = self.__translatable.get(language)
 
  
 class DisplayableBall(Displayable):
     '''
-    The class representing a displayable object. 
+    The class representing a displayable circular object. 
 
     Attributes
     ----------
@@ -567,3 +579,15 @@ class DisplayableBall(Displayable):
         '''
         self.__blit(angle)
         return super().display(screen, offset)
+    
+
+class CenterScreenDisplay(StaticDisplayable):
+    def __init__(self, center_screen: Surface) -> None:
+        super().__init__(
+            center_screen, 
+            Vector.zero, 
+            Alignment(Alignment.Mode.CENTERED, Alignment.Mode.CENTERED)
+        )
+
+    def display(self, main_screen: Surface) -> None:
+        return super().display(main_screen)
