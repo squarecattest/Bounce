@@ -3,7 +3,7 @@ from constants import SettingConstant as Constant
 from resources import Path
 from dataclasses import dataclass
 from json import load as jsonload, dump as jsondump
-from errorlog import log
+from errorlog import Log
 from threading import Thread
 
 @dataclass
@@ -58,7 +58,10 @@ class Setting:
         try:
             with open(Path.SETTING, "r") as file:
                 raw_setting = jsonload(file)
-        except:
+        except FileNotFoundError:
+            return Setting.default
+        except BaseException as e:
+            Log.log(e)
             return Setting.default
         if not isinstance(raw_setting, dict):
             return Setting.default
@@ -93,5 +96,5 @@ class Setting:
                         indent=4
                     )
             except BaseException as e:
-                log(e)
+                Log.log(e)
         Thread(target=thread_save).start()
