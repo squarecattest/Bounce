@@ -353,7 +353,7 @@ class GameInterface(Interface):
         self.bounce = False
         for _ in range(ticks - 1):
             self.game.tick(Constant.DT, False)
-        self.height = max(self.height, self.game.ball.pos_y)
+        self.height = max(self.height, self.game.ball.position.y)
         if not self.status & (GI.GS.GAMEOVER | GI.GS.RESTART_SCREEN) and self.game.gameover:
             self.__handle_event(GI.GE.GAME_GAMEOVER)
         self.__read_debug_msg()
@@ -688,7 +688,7 @@ class GameInterface(Interface):
             Vector(566, 34), 
             scoreboard_alignment, 
             Font.Game.SCOREBOARD_VALUE, 
-            f"{get_level(self.game.ball.pos_y)}", 
+            f"{get_level(self.game.ball.position.y)}", 
             Color.Game.SCOREBOARD_VALUE
         ).display(screen)
         DisplayableTranslatable(
@@ -1385,6 +1385,7 @@ class OptionInterface(Interface):
             case OI.OE.BACK:
                 self.status = OI.OS.EMPTY
                 self.selection = OI.PS.LANGUAGE
+                self.__handle_event(OI.OE.CURSOR_ON_EMPTY)
                 self.last_mouse_pos = (0, 0)
                 self.settings.save()
                 self.requests.append(OptionRequest.BACK)
@@ -1877,6 +1878,8 @@ class ControlInterface(Interface):
                 self.status = CI.CS.EMPTY
             case CI.CE.BACK:
                 self.requests.append(ControlRequest.BACK)
+                self.__handle_event(CI.CE.CURSOR_ON_EMPTY)
+                self.__handle_event(CI.CE.CLICKRELEASE)
             case CI.CE.QUIT:
                 self.requests.append(ControlRequest.QUIT)
 

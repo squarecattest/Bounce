@@ -1,5 +1,6 @@
+from pygame import Surface
 from physics import PhysicsBall, PhysicsGround, PhysicsSlab, PhysicsWall, PhysicsObject
-from vector import _isNumber, NumberType, Vector
+from vector import _isNumber, NumberType, VectorType, Vector
 from errorlog import Log
 from constants import GeneralConstant, GameConstant as Constant
 from resources import Path
@@ -50,8 +51,8 @@ class LevelGenerator:
                     "velocity": velocity, 
                     **rest
                 } if (
-                    length >= 2
-                    and 2 <= width <= 50
+                    length >= 4
+                    and 4 <= width <= 50
                     and separation >= 0 
                     and _isNumber(velocity)
                 ):
@@ -103,7 +104,22 @@ class LevelGenerator:
         To be documented
         '''
         self.__current = 0
-            
+
+
+class DisplayableSlab:
+    def __init__(
+        self, 
+        position: VectorType, 
+        length: int, 
+        width: int, 
+        velocity: NumberType
+    ) -> None:
+        self.background_slab = PhysicsSlab(position, (length, width), velocity)
+
+    @staticmethod
+    def get_surface(length: int, width: int) -> Surface:
+        surface = Surface((length, width))
+        
 
 class SlabLevel:
     GENERATE_HEIGHT: int = Constant.GROUND_Y + Constant.SLAB_GAP
@@ -193,10 +209,10 @@ class Game:
             GeneralConstant.BALL_RADIUS
         )
         self.ground = PhysicsGround(Constant.GROUND_Y)
-        self.wall_left = PhysicsWall(0, PhysicsWall.FACING_RIGHT)
+        self.wall_left = PhysicsWall(0, PhysicsWall.FACING.RIGHT)
         self.wall_right = PhysicsWall(
             GeneralConstant.DEFAULT_SCREEN_SIZE[0], 
-            PhysicsWall.FACING_LEFT
+            PhysicsWall.FACING.LEFT
         )
         self.slab_levels = deque()
         while SlabLevel.GENERATE_HEIGHT <= Constant.UPPER_SLAB_BOUNDARY:

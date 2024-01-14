@@ -40,6 +40,8 @@ class Texture:
     BALL_FRAME = pygame.image.load(".\\textures\\ball_frame-40px.png").convert_alpha()
     BALL_SURFACE = pygame.image.load(".\\textures\\ball_surface-40px.png").convert_alpha()
     SLAB = pygame.image.load(".\\textures\\brick-150x10.png").convert()
+    SLAB_FRAME = pygame.image.load(".\\textures\\slab_frame-10x10.png").convert()
+    SLAB_SURFACE = pygame.image.load(".\\textures\\slab_surface-10x10.png").convert()
     GROUND = pygame.image.load(".\\textures\\ground-62x28.png").convert()
     SCOREBOARD = pygame.image.load(".\\textures\\scoreboard-10x60.png").convert()
     SELECTION_MENU_ARROW = pygame.image.load(
@@ -76,6 +78,7 @@ class Texture:
 class Color:
     BLACK = (0, 0, 0)
     WHITE = (255, 255, 255)
+    TRANSPARENT = (0, 0, 0, 0)
     class Game:
         START_TEXT = (255, 255, 255)
         SELECTION_MENU_TEXT = (255, 255, 255)

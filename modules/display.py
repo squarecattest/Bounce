@@ -4,10 +4,11 @@ from pygame.transform import rotate
 from modules.vector import Vector
 from vector import Vector, NumberType
 from language import Language, TranslateName, Translatable
+from resources import Color
 from enum import Enum, Flag, auto
 from itertools import product
 from functools import reduce
-from typing import Union, Callable, Generator
+from typing import Union, Callable, Generator, NoReturn
 
 type ColorType = Union[pgColor, int, str, tuple[int, int, int], tuple[int, int, int, int]]
 
@@ -581,6 +582,114 @@ class DisplayableBall(Displayable):
         return super().display(screen, offset)
     
 
+class DisplayableSlab(Displayable):
+    class DisplayableSubslab(StaticDisplayable):
+        def __init__(
+            self, 
+            source_surface: Surface, 
+            length: int, 
+            width: int
+        ) -> None:
+            super().__init__(
+                source_surface, 
+                Vector.zero, 
+                Alignment(Alignment.Mode.DEFAULT, Alignment.Mode.DEFAULT)
+            )
+            self.source_surface = source_surface
+            self.length_range = [0, length]
+            self.width = width
+
+        def display(self, background_surface: Surface) -> None:
+            return super().display(background_surface)
+        
+        def shrink_fromleft(self, length: int) -> Surface:
+            if self.length_range[1] - self.length_range[0] <= length:
+                return_surface = self.source_surface.subsurface(
+                    (self.length_range[0], 0), 
+                    (self.length_range[1] - self.length_range[0], self.width)
+                )
+                self.length_range[0] = self.length_range[1]
+            else:
+                return_surface = self.source_surface.subsurface(
+                    (self.length_range[0], 0), 
+                    (length, self.width)
+                )
+                self.length_range[0] += length
+            self.surface = self.shrunk_surface
+            self.offset = Vector(self.length_range[0], 0)
+            return return_surface
+        
+        def shrink_fromright(self, length: int) -> Surface:
+            if self.length_range[1] - self.length_range[0] <= length:
+                return_surface = self.source_surface.subsurface(
+                    (self.length_range[0], 0), 
+                    (self.length_range[1] - self.length_range[0], self.width)
+                )
+                self.length_range[1] = self.length_range[0]
+            else:
+                return_surface = self.source_surface.subsurface(
+                    (self.length_range[1] - length, 0), 
+                    (length, self.width)
+                )
+                self.length_range[1] -= length
+            self.surface = self.shrunk_surface
+            return return_surface
+        
+        @property
+        def shrunk_surface(self):
+            return self.source_surface.subsurface(
+                (self.length_range[0], 0), 
+                (self.length_range[1] - self.length_range[0], self.width)
+            )
+    
+    def __init__(
+        self, 
+        frame: Surface, 
+        center_texture: Surface, 
+        length: int, 
+        width: int, 
+        alignment: Alignment
+    ) -> None:
+        source_surface = Surface((length, width))
+        StaticDisplayable(
+            frame, 
+            Vector.zero, 
+            Alignment(
+                Alignment.Mode.DEFAULT, 
+                Alignment.Mode.DEFAULT, 
+                Alignment.Flag.FILL, 
+                facing=Alignment.Facing.ALL
+            )
+        ).display(source_surface)
+        StaticDisplayable(
+            center_texture, 
+            Vector.zero, 
+            Alignment(
+                Alignment.Mode.DEFAULT, 
+                Alignment.Mode.DEFAULT, 
+                Alignment.Flag.FILL, 
+                facing=Alignment.Facing.ALL
+            )
+        ).display(source_surface.subsurface((2, 2), (length - 4, width - 4)))
+        super().__init__(Surface(length, width), alignment)
+        self.subdisplay = DisplayableSlab.DisplayableSubslab(source_surface, length, width)
+
+    def display(self, screen: Surface, offset: Vector) -> None:
+        self.surface.fill(Color.TRANSPARENT)
+        self.subdisplay.display(self.surface)
+        return super().display(screen, offset)
+    
+    def contains(self, screen: Surface, offset: Vector, input_coordinate: Vector) -> NoReturn:
+        raise NotImplementedError
+
+    def shrink_fromleft(self, length: int) -> Surface:
+        return self.subdisplay.shrink_fromleft(length)
+    
+    def shrink_fromright(self, length: int) -> Surface:
+        return self.subdisplay.shrink_fromright(length)
+
+
+
 class CenterScreenDisplay(StaticDisplayable):
     def __init__(self, center_screen: Surface) -> None:
         super().__init__(
@@ -591,3 +700,6 @@ class CenterScreenDisplay(StaticDisplayable):
 
     def display(self, main_screen: Surface) -> None:
         return super().display(main_screen)
+    
+    def contains(self, screen: Surface, input_coordinate: Vector) -> NoReturn:
+        raise NotImplementedError
