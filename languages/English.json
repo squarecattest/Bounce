@@ -15,5 +15,10 @@
     "option_fps": "FPS", 
     "option_bgm": "BGM Volume", 
     "option_se": "SE Volume", 
-    "option_back": "Back"
+    "option_back": "Back", 
+    "control_title": "Controls", 
+    "control_back": "Back", 
+    "control_bounce": "Bounce", 
+    "control_pause": "Pause", 
+    "control_debug": "Switch ON/OFF debug menu"
 }

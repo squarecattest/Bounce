@@ -15,5 +15,10 @@
     "option_fps": "FPS", 
     "option_bgm": "背景音樂音量", 
     "option_se": "音效音量", 
-    "option_back": "返回"
+    "option_back": "返回", 
+    "control_title": "操作說明", 
+    "control_back": "返回", 
+    "control_bounce": "彈跳", 
+    "control_pause": "暫停", 
+    "control_debug": "開啟/關閉除錯畫面"
 }

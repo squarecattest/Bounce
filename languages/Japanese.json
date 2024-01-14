@@ -15,5 +15,10 @@
     "option_fps": "FPS", 
     "option_bgm": "BGM音量", 
     "option_se": "SE音量", 
-    "option_back": "戻る"
+    "option_back": "戻る", 
+    "control_title": "操作方法", 
+    "control_back": "戻る", 
+    "control_bounce": "バウンド", 
+    "control_pause": "ポーズ", 
+    "control_debug": "デバッグメニューを ON/OFF にする"
 }
