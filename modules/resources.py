@@ -42,6 +42,12 @@ class Texture:
     SLAB = pygame.image.load(".\\textures\\brick-150x10.png").convert()
     SLAB_FRAME = pygame.image.load(".\\textures\\slab_frame-10x10.png").convert()
     SLAB_SURFACE = pygame.image.load(".\\textures\\slab_surface-10x10.png").convert()
+    ROCKET_FACING_LEFT = pygame.image.load(
+        ".\\textures\\rocket_left-150x100.png"
+    ).convert_alpha()
+    ROCKET_FACING_RIGHT = pygame.image.load(
+        ".\\textures\\rocket_right-150x100.png"
+    ).convert_alpha()
     GROUND = pygame.image.load(".\\textures\\ground-62x28.png").convert()
     SCOREBOARD = pygame.image.load(".\\textures\\scoreboard-10x60.png").convert()
     SELECTION_MENU_ARROW = pygame.image.load(
@@ -80,6 +86,7 @@ class Color:
     WHITE = (255, 255, 255)
     TRANSPARENT = (0, 0, 0, 0)
     class Game:
+        ROCKET_TRANSPARENT = (255, 255, 255)
         START_TEXT = (255, 255, 255)
         SELECTION_MENU_TEXT = (255, 255, 255)
         SELECTION_MENU_TEXT_SELECTING = (160, 160, 160)

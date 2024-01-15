@@ -1,15 +1,27 @@
-from pygame import Surface
-from physics import PhysicsBall, PhysicsGround, PhysicsSlab, PhysicsWall, PhysicsObject
-from vector import _isNumber, NumberType, VectorType, Vector
+from pygame import Surface, PixelArray
+from physics import (
+    PhysicsGround, 
+    PhysicsWall, 
+    PhysicsSlab, 
+    PhysicsRocket, 
+    PhysicsBall, 
+    PhysicsParticle, 
+    PhysicsObject
+)
+from vector import _isNumber, NumberType, VectorType, SizeType, Vector
+from display import Alignment, DisplayableSlab, DisplayableParticle, ColorType
 from errorlog import Log
-from constants import GeneralConstant, GameConstant as Constant
-from resources import Path
+from constants import GeneralConstant, GameConstant as Constant, InterfaceConstant
+from resources import Texture, Path
+from utils import Direction
 from collections import deque
+from itertools import product
+from random import uniform
 from json import load as jsonload, dump as jsondump
 from string import ascii_letters
 from random import randint, choice
 from threading import Thread
-from typing import NamedTuple,  Callable, Iterator, Generator
+from typing import NamedTuple, Callable, Iterator, Generator
 
 def get_level(height: NumberType) -> int:
     return int(height) // Constant.SLAB_GAP + 1
@@ -18,7 +30,7 @@ def get_height(level: int) -> int:
     return level * Constant.SLAB_GAP - Constant.SLAB_GAP // 2 - GeneralConstant.BALL_RADIUS
 
 
-class _Level(NamedTuple):
+class Level(NamedTuple):
     length: int
     width: int
     separation: int
@@ -29,20 +41,20 @@ class LevelGenerator:
     class ParserError(Exception):
         pass
 
-    __levels: list[_Level]
+    __levels: list[Level]
     __current: int
     __length: int
     __repeat_from: int | None
 
     def set_default(self) -> None:
-        self.__levels = [_Level(**Constant.DEFAULT_LEVEL)]
+        self.__levels = [Level(**Constant.DEFAULT_LEVEL)]
         self.__current = 0
         self.__length = 1
         self.__repeat_from = None
 
     def __init__(self, level_filepath: str) -> None:
-        default = _Level(**Constant.DEFAULT_LEVEL)
-        def parse(level, index: int) -> _Level:
+        default = Level(**Constant.DEFAULT_LEVEL)
+        def parse(level, index: int) -> Level:
             match level:
                 case {
                     "length": int(length), 
@@ -58,7 +70,7 @@ class LevelGenerator:
                 ):
                     if rest.get("repeat_from_here") is True:
                         self.__repeat_from = index
-                    return _Level(length, width, separation, velocity)
+                    return Level(length, width, separation, velocity)
             error_args.append(f"\nInvalid level argument at level {index + 1}: {level}")
             return default
 
@@ -85,7 +97,7 @@ class LevelGenerator:
         if error_args:
             Log.log(LevelGenerator.ParserError("".join(error_args)))
 
-    def generate(self) -> _Level | None:
+    def generate(self) -> Level | None:
         '''
         To be documented
         '''
@@ -106,19 +118,104 @@ class LevelGenerator:
         self.__current = 0
 
 
-class DisplayableSlab:
+class Slab:
     def __init__(
         self, 
         position: VectorType, 
         length: int, 
         width: int, 
-        velocity: NumberType
+        velocity_x: NumberType
     ) -> None:
-        self.background_slab = PhysicsSlab(position, (length, width), velocity)
+        self.entity = PhysicsSlab(position, (length, width), velocity_x)
+        self.display = DisplayableSlab(
+            Texture.SLAB_FRAME, 
+            Texture.SLAB_SURFACE, 
+            length, 
+            width, 
+            Alignment(
+                Alignment.Mode.CENTERED, 
+                Alignment.Mode.CENTERED, 
+                Alignment.Flag.REFERENCED, 
+                offset=InterfaceConstant.SCREEN_OFFSET
+            )
+        )
 
-    @staticmethod
-    def get_surface(length: int, width: int) -> Surface:
-        surface = Surface((length, width))
+    def generate_particle(self, range_left: int, surface: Surface) -> "list[Particle]":
+        unit_range = (
+            (surface.get_size()[0] - 1) // Constant.UNIT_PARTICLE_SIZE + 1, 
+            (surface.get_size()[1] - 1) // Constant.UNIT_PARTICLE_SIZE + 1
+        )
+        surface_size = (
+            Constant.UNIT_PARTICLE_SIZE * unit_range[0], 
+            Constant.UNIT_PARTICLE_SIZE * unit_range[1]
+        )
+        new_surface = Surface(surface_size)
+        new_surface.blit(surface, (0, 0))
+        surface_center = Vector(surface_size) / 2 - Vector(0.5, 0.5)
+        reference = (
+            self.entity.position - Vector(self.entity.size) / 2
+            + Vector(surface_size) / 2 + Vector(range_left + 0.5, 0.5)
+        )
+        particles = []
+        unit_offset = Vector(Constant.UNIT_PARTICLE_SIZE, Constant.UNIT_PARTICLE_SIZE) / 2
+        for x, y in product(range(unit_range[0]), range(unit_range[1])):
+            offset = Vector(x, y) * Constant.UNIT_PARTICLE_SIZE + unit_offset
+            particles.append(
+                Particle(
+                    reference + offset, 
+                    (offset - surface_center) * Constant.PARTICLE_OFFSET_SPEED_CONSTANT
+                    + Vector(
+                        uniform(
+                            -Constant.PARTICLE_RANDOM_SPEED, 
+                            Constant.PARTICLE_RANDOM_SPEED
+                        ), 
+                        uniform(
+                            -Constant.PARTICLE_RANDOM_SPEED, 
+                            Constant.PARTICLE_RANDOM_SPEED
+                        )
+                    ), 
+                    0, 
+                    uniform(
+                        -Constant.PARTICLE_RANDOM_ANGULAR_FREQUENCY, 
+                        Constant.PARTICLE_RANDOM_ANGULAR_FREQUENCY
+                    ), 
+                    new_surface.subsurface(
+                        (x * Constant.UNIT_PARTICLE_SIZE, y * Constant.UNIT_PARTICLE_SIZE), 
+                        (Constant.UNIT_PARTICLE_SIZE, Constant.UNIT_PARTICLE_SIZE)
+                    )
+                )
+            )
+        return particles
+
+
+class Particle:
+    def __init__(
+        self, 
+        position: VectorType, 
+        velocity: VectorType, 
+        initial_angle: NumberType, 
+        angular_frequency: NumberType, 
+        surface: Surface
+    ) -> None:
+        self.entity = PhysicsParticle(position, velocity, initial_angle, angular_frequency)
+        self.display = DisplayableParticle(
+            surface, 
+            Alignment(
+                Alignment.Mode.CENTERED, 
+                Alignment.Mode.CENTERED, 
+                Alignment.Flag.REFERENCED, 
+                offset=InterfaceConstant.SCREEN_OFFSET
+            )
+        )
+        self.largerside = max(surface.get_size())
+
+    def check_removal(self, bottom_y: NumberType) -> bool:
+        position = self.entity.position
+        return (
+            position.y + self.largerside <= bottom_y
+            or position.x + self.largerside <= 0
+            or position.x - self.largerside >= GeneralConstant.DEFAULT_SCREEN_SIZE[0]
+        )
         
 
 class SlabLevel:
@@ -126,11 +223,12 @@ class SlabLevel:
     LEVEL: int = 2
     height: int
     level: int
-    __slabs: deque[PhysicsSlab]
+    level_info: Level | None
+    __slabs: deque[Slab]
     __recycle: Callable[[], None]
 
     def __init__(self, level_generator: LevelGenerator) -> None:
-        level = level_generator.generate()
+        level = self.level_info = level_generator.generate()
         self.__slabs = deque()
         self.height = SlabLevel.GENERATE_HEIGHT
         self.level = SlabLevel.LEVEL
@@ -148,9 +246,10 @@ class SlabLevel:
 
         for i in range(generate_sets):
             self.__slabs.append(
-                PhysicsSlab(
+                Slab(
                     (unit_length * i + level.length // 2, SlabLevel.GENERATE_HEIGHT), 
-                    (level.length, level.width), 
+                    level.length, 
+                    level.width, 
                     level.velocity
                 )
             )
@@ -159,15 +258,19 @@ class SlabLevel:
         if level.velocity > 0:
             boundary = GeneralConstant.DEFAULT_SCREEN_SIZE[0] + level.length // 2
             def recycle():
-                if (pos := self.__slabs[-1].position).x >= boundary:
-                    pos.x -= cycle_length
+                if (slab := self.__slabs[-1]).entity.position.x >= boundary:
+                    slab.entity.position.x -= cycle_length
+                    slab.entity.reload()
+                    slab.display.reload()
                     self.__slabs.appendleft(self.__slabs.pop())
             self.__recycle = recycle
         elif level.velocity < 0:
             boundary = - (level.length // 2)
             def recycle():
-                if (pos := self.__slabs[0].position).x <= boundary:
-                    pos.x += cycle_length
+                if (slab := self.__slabs[0]).entity.position.x <= boundary:
+                    slab.entity.position.x += cycle_length
+                    slab.entity.reload()
+                    slab.display.reload()
                     self.__slabs.append(self.__slabs.popleft())
             self.__recycle = recycle
         else:
@@ -176,12 +279,12 @@ class SlabLevel:
         # Clean up
         SlabLevel.GENERATE_HEIGHT += Constant.SLAB_GAP
 
-    def __iter__(self) -> Iterator[PhysicsSlab]:
+    def __iter__(self) -> Iterator[Slab]:
         return iter(self.__slabs)
 
     def tick(self, dt: float) -> None:
         for slab in self.__slabs:
-            slab.tick(dt)
+            slab.entity.tick(dt)
         self.__recycle()
 
     @classmethod
@@ -199,6 +302,9 @@ class Game:
     wall_left: PhysicsWall
     wall_right: PhysicsWall
     slab_levels: deque[SlabLevel]
+    rockets: list[PhysicsRocket]
+    particles: list[Particle]
+
     def __init__(self, level_filepath: str) -> None:
         self.__level_generator = LevelGenerator(level_filepath)
         self.reference = 0
@@ -209,27 +315,57 @@ class Game:
             GeneralConstant.BALL_RADIUS
         )
         self.ground = PhysicsGround(Constant.GROUND_Y)
-        self.wall_left = PhysicsWall(0, PhysicsWall.FACING.RIGHT)
-        self.wall_right = PhysicsWall(
-            GeneralConstant.DEFAULT_SCREEN_SIZE[0], 
-            PhysicsWall.FACING.LEFT
-        )
+        self.wall_left = PhysicsWall(0, Direction.RIGHT)
+        self.wall_right = PhysicsWall(GeneralConstant.DEFAULT_SCREEN_SIZE[0], Direction.LEFT)
         self.slab_levels = deque()
         while SlabLevel.GENERATE_HEIGHT <= Constant.UPPER_SLAB_BOUNDARY:
             self.slab_levels.append(SlabLevel(self.__level_generator))
+        self.rockets = []
+        self.particles = []
 
     def tick(self, dt: float, bounce: bool) -> None:
         for slab_level in self.slab_levels:
             slab_level.tick(dt)
+        rockets = []
+        for rocket in self.rockets:
+            rocket.tick(dt)
+            for slab in self.slabs:
+                direction, length = slab.entity.get_shrink_parameter(rocket)
+                if length == 0:
+                    continue
+                if direction == Direction.LEFT:
+                    self.particles += slab.generate_particle(
+                        slab.entity.active_length_range[0], 
+                        slab.display.shrink_fromleft(length)
+                    )
+                elif direction == Direction.RIGHT:
+                    surface = slab.display.shrink_fromright(length)
+                    self.particles += slab.generate_particle(
+                        slab.entity.active_length_range[1], 
+                        surface
+                    )
+            if not rocket.remove:
+                rockets.append(rocket)
+        self.rockets = rockets
+        particles = []
+        bottom_y = Constant.SCREEN_BOTTOM_Y + self.reference
+        for particle in self.particles:
+            particle.entity.tick(dt)
+            if not particle.check_removal(bottom_y):
+                particles.append(particle)
+        self.particles = particles
         if self.gameover:
             return
+        
         self.ball.tick(
             dt, 
             self.objects,
             bounce
         )
-        if (pos_y := self.ball.position.y) + self.ball.radius \
-            <= Constant.GAMEOVER_HEIGHT + self.reference:
+        if self.ball.gameover:
+            self.gameover = True
+            return
+        if (pos_y := self.ball.position.y) + self.ball.radius <= bottom_y:
             self.gameover = True
             return
         if pos_y > self.max_height:
@@ -252,15 +388,40 @@ class Game:
             (GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 0), 
             GeneralConstant.BALL_RADIUS
         )
+        self.rockets = []
+        self.particles = []
         self.slab_levels = deque()
         while SlabLevel.GENERATE_HEIGHT <= Constant.UPPER_SLAB_BOUNDARY:
             self.slab_levels.append(SlabLevel(self.__level_generator))
+
+    def generate_rocket(self, issuper: bool = False) -> None:
+        level = get_level(self.ball.position.y) + (self.ball.velocity.y > 0)
+        for slab_level in self.slab_levels:
+            if slab_level.level == level and slab_level.level_info is not None:
+                rocket_facing_left = slab_level.level_info.velocity > 0
+                break
+        else:
+            if not self.slab_levels or (slab_level := self.slab_levels[-1]).level_info is None:
+                return
+            level = slab_level.level
+            rocket_facing_left = slab_level.level_info.velocity > 0
+        height = (level - 1) * Constant.SLAB_GAP - GeneralConstant.BALL_RADIUS
+        if rocket_facing_left:
+            position = (
+                GeneralConstant.DEFAULT_SCREEN_SIZE[0] + Constant.ROCKET_HALFSIZE[0], 
+                height
+            )
+            velocity_x = -Constant.SUPER_ROCKET_SPEED if issuper else -Constant.ROCKET_SPEED
+        else:
+            position = (-Constant.ROCKET_HALFSIZE[0], height)
+            velocity_x = Constant.SUPER_ROCKET_SPEED if issuper else Constant.ROCKET_SPEED
+        self.rockets.append(PhysicsRocket(position, velocity_x))
         
     def position_map(self, position: Vector) -> Vector:
         return Vector(position.x, Constant.ORIGINAL_TOP_HEIGHT + self.reference - position.y)
     
     @property
-    def slabs(self) -> Generator[PhysicsSlab, None, None]:
+    def slabs(self) -> Generator[Slab, None, None]:
         for slab_level in self.slab_levels:
             for slab in slab_level:
                 yield slab
@@ -270,8 +431,10 @@ class Game:
         yield self.ground
         yield self.wall_left
         yield self.wall_right
+        for rocket in self.rockets:
+            yield rocket
         for slab in self.slabs:
-            yield slab
+            yield slab.entity
 
 
 class HighScore:

@@ -2,7 +2,7 @@ from pygame import Surface, Color as pgColor
 from pygame.font import Font
 from pygame.transform import rotate
 from modules.vector import Vector
-from vector import Vector, NumberType
+from vector import Vector, NumberType, SizeType
 from language import Language, TranslateName, Translatable
 from resources import Color
 from enum import Enum, Flag, auto
@@ -597,6 +597,7 @@ class DisplayableSlab(Displayable):
             )
             self.source_surface = source_surface
             self.length_range = [0, length]
+            self.original_length = length
             self.width = width
 
         def display(self, background_surface: Surface) -> None:
@@ -607,13 +608,13 @@ class DisplayableSlab(Displayable):
                 return_surface = self.source_surface.subsurface(
                     (self.length_range[0], 0), 
                     (self.length_range[1] - self.length_range[0], self.width)
-                )
+                ).copy()
                 self.length_range[0] = self.length_range[1]
             else:
                 return_surface = self.source_surface.subsurface(
                     (self.length_range[0], 0), 
                     (length, self.width)
-                )
+                ).copy()
                 self.length_range[0] += length
             self.surface = self.shrunk_surface
             self.offset = Vector(self.length_range[0], 0)
@@ -624,13 +625,13 @@ class DisplayableSlab(Displayable):
                 return_surface = self.source_surface.subsurface(
                     (self.length_range[0], 0), 
                     (self.length_range[1] - self.length_range[0], self.width)
-                )
+                ).copy()
                 self.length_range[1] = self.length_range[0]
             else:
                 return_surface = self.source_surface.subsurface(
                     (self.length_range[1] - length, 0), 
                     (length, self.width)
-                )
+                ).copy()
                 self.length_range[1] -= length
             self.surface = self.shrunk_surface
             return return_surface
@@ -671,11 +672,12 @@ class DisplayableSlab(Displayable):
                 facing=Alignment.Facing.ALL
             )
         ).display(source_surface.subsurface((2, 2), (length - 4, width - 4)))
-        super().__init__(Surface(length, width), alignment)
+        super().__init__(Surface((length, width)), alignment)
+        self.surface.set_colorkey(Color.Game.ROCKET_TRANSPARENT)
         self.subdisplay = DisplayableSlab.DisplayableSubslab(source_surface, length, width)
 
     def display(self, screen: Surface, offset: Vector) -> None:
-        self.surface.fill(Color.TRANSPARENT)
+        self.surface.fill(Color.Game.ROCKET_TRANSPARENT)
         self.subdisplay.display(self.surface)
         return super().display(screen, offset)
     
@@ -687,7 +689,21 @@ class DisplayableSlab(Displayable):
     
     def shrink_fromright(self, length: int) -> Surface:
         return self.subdisplay.shrink_fromright(length)
+    
+    def reload(self) -> None:
+        self.subdisplay.surface = self.subdisplay.source_surface
+        self.subdisplay.offset = Vector.zero
+        self.subdisplay.length_range = [0, self.subdisplay.original_length]
+    
 
+class DisplayableParticle(Displayable):
+    def __init__(self, surface: Surface, alignment: Alignment) -> None:
+        self.base_surface = surface
+        super().__init__(self.base_surface, alignment)
+
+    def display(self, screen: Surface, offset: Vector, angle: NumberType) -> None:
+        self.surface = rotate(self.base_surface, -angle)
+        return super().display(screen, offset)
 
 
 class CenterScreenDisplay(StaticDisplayable):

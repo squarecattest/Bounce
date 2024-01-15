@@ -141,6 +141,7 @@ class GameInterface(Interface):
         CLICKRELEASE_ON_CONTROLS = auto()
         CLICKRELEASE_ON_QUIT = auto()
         CLICKRELEASE = auto()
+        TEST_GENERATE_ROCKET = auto()
         QUIT = auto()
 
     class GameStatus(Flag):
@@ -212,7 +213,14 @@ class GameInterface(Interface):
                 offset=Constant.SCREEN_OFFSET
             )
         )
-        self.slab_display = Displayable(Texture.SLAB, BASIC_ALIGNMENT)
+        self.leftfacing_rocket_display = Displayable(
+            Texture.ROCKET_FACING_LEFT, 
+            BASIC_ALIGNMENT
+        )
+        self.rightfacing_rocket_display = Displayable(
+            Texture.ROCKET_FACING_RIGHT, 
+            BASIC_ALIGNMENT
+        )
         self.scoreboard_bg = StaticDisplayable(
             Texture.SCOREBOARD, 
             Constant.SCOREBOARD_DISPLAY_POS, 
@@ -491,6 +499,8 @@ class GameInterface(Interface):
                 self.status &= ~GI.GS.PRESSING
             case GI.GE.CLICKRELEASE:
                 self.status &= ~GI.GS.PRESSING
+            case GI.GE.TEST_GENERATE_ROCKET:
+                self.game.generate_rocket()
             case GI.GE.QUIT:
                 self.requests.append(GameRequest.QUIT)
 
@@ -508,6 +518,8 @@ class GameInterface(Interface):
                         return GI.GE.SELECTION_UP
                     case pygame.K_DOWN:
                         return GI.GE.SELECTION_DOWN
+                    case pygame.K_t:
+                        return GI.GE.TEST_GENERATE_ROCKET
                     case pygame.K_RETURN:
                         return GI.GE.SELECTION_ENTER
             case pygame.MOUSEBUTTONDOWN if event.button == pygame.BUTTON_LEFT:
@@ -556,16 +568,34 @@ class GameInterface(Interface):
             self.game.position_map(self.game.ground.position)
         )
         for slab in self.game.slabs:
-            self.slab_display.display(
+            slab.display.display(
                 center_screen, 
-                self.game.position_map(slab.position)
+                self.game.position_map(slab.entity.position)
+            )
+        for rocket in self.game.rockets:
+            if rocket.velocity.x < 0:
+                self.leftfacing_rocket_display.display(
+                    center_screen, 
+                    self.game.position_map(rocket.position)
+                )
+            else:
+                self.rightfacing_rocket_display.display(
+                    center_screen, 
+                    self.game.position_map(rocket.position)
+                )
+        for particle in self.game.particles:
+            particle.display.display(
+                center_screen, 
+                self.game.position_map(particle.entity.position), 
+                particle.entity.deg_angle
             )
         self.__level_display(center_screen)
-        self.ball_display.display(
-            center_screen, 
-            self.game.position_map(self.game.ball.position), 
-            self.game.ball.deg_angle
-        )
+        if not self.game.gameover:
+            self.ball_display.display(
+                center_screen, 
+                self.game.position_map(self.game.ball.position), 
+                self.game.ball.deg_angle
+            )
         if self.debugging:
             self.__debug_display(center_screen, set_FPS, real_FPS)
         if (GI.GS.RELOADING | GI.GS.LOADED | GI.GS.STARTING) & self.status:

@@ -5,7 +5,7 @@ from math import isfinite
 type NumberType = Union[int, float]
 type LengthType = Union[int, float]
 type VectorType = Union[Vector, Iterable[NumberType]]
-type SizeType = Union[Vector, Iterable[int]]
+type SizeType = Union[Vector, tuple[int, int]]
 
 def _isNumber(arg, /) -> bool:
     '''
@@ -137,7 +137,7 @@ class Vector:
             raise ZeroDivisionError
         return Vector(self.__x // __c, self.__y // __c)
 
-    def __getitem__(self, __i: int) -> NumberType:
+    def __getitem__(self, __i: Literal[0, 1]) -> NumberType:
         if not isinstance(__i, int):
             raise TypeError(f"Expected integer index 0 or 1, got {type(__i).__name__}")
         if __i == 0:

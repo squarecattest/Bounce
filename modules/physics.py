@@ -1,5 +1,6 @@
 from vector import Vector, NumberType, LengthType, VectorType, SizeType
-from constants import PhysicsConstant as Constant
+from constants import GeneralConstant, PhysicsConstant as Constant, GameConstant
+from utils import Direction
 from enum import Enum, auto
 from abc import ABC, abstractmethod
 from typing import Literal, Iterable, NoReturn
@@ -226,30 +227,26 @@ class PhysicsWall(PhysicsObject):
     '''
     The class representing physical interaction of a flat ground.
     '''
-    class FACING(Enum):
-        LEFT = auto()
-        RIGHT = auto()
-
     __x_side: NumberType
-    __facing: FACING
+    __facing: Direction
     
-    def __init__(self, x_side: NumberType, facing: FACING):
+    def __init__(self, x_side: NumberType, facing: Direction):
         '''
         Parameters
         ----------
         x_side: :class:`NumberType`
             The x coordinate of the surface.
-        facing: ``PhysicsWall.FACING_LEFT`` or ``PhysicsWall.FACING_RIGHT``
+        facing: ``Direction.LEFT`` or ``Direction.RIGHT``
             The facing of the wall.
         '''
         self.__x_side = x_side
         self.__facing = facing
 
     def check_collision(self, ball: "PhysicsBall") -> Vector | None:
-        if self.__facing == PhysicsWall.FACING.RIGHT \
+        if self.__facing == Direction.RIGHT \
             and ball.position.x - ball.radius <= self.__x_side:
             return Vector.unit_rightward
-        if self.__facing == PhysicsWall.FACING.LEFT \
+        if self.__facing == Direction.LEFT \
             and ball.position.x + ball.radius >= self.__x_side:
             return Vector.unit_leftward
         return None
@@ -258,9 +255,9 @@ class PhysicsWall(PhysicsObject):
         return False
     
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
-        if self.__facing == PhysicsWall.FACING.RIGHT:
+        if self.__facing == Direction.RIGHT:
             return Vector.unit_rightward
-        if self.__facing == PhysicsWall.FACING.LEFT:
+        if self.__facing == Direction.LEFT:
             return Vector.unit_leftward
     
     @property
@@ -271,7 +268,7 @@ class PhysicsWall(PhysicsObject):
         return self.__x_side
     
     @property
-    def facing(self) -> FACING:
+    def facing(self) -> Direction:
         '''
         (Read-only) The facing of the wall.
         '''
@@ -283,7 +280,7 @@ class PhysicsWall(PhysicsObject):
         (Read-only) The velocity of the wall. Always a zero vector.
         '''
         return Vector.zero
-
+    
 
 class PhysicsSlab(PhysicsObject):
     '''
@@ -292,6 +289,7 @@ class PhysicsSlab(PhysicsObject):
     __pos: Vector
     __v: Vector
     __size: tuple[int, int]
+    __active_length_range: list[int]
 
     def __init__(self, position: VectorType, size: SizeType, velocity_x: NumberType) -> None:
         '''
@@ -307,6 +305,7 @@ class PhysicsSlab(PhysicsObject):
         self.__pos = Vector(position)
         self.__v = Vector(velocity_x, 0)
         self.__size = tuple(size)
+        self.__active_length_range = [0, self.__size[0]]
 
     def tick(self, dt: float) -> None:
         '''
@@ -316,9 +315,15 @@ class PhysicsSlab(PhysicsObject):
         self.__pos += self.__v * dt
 
     def check_collision(self, ball: "PhysicsBall") -> Vector | None:
+        # Early exclusion
         if abs(ball.position.y - self.__pos.y) > ball.radius + self.__size[1] // 2:
             return None
-        x_range = self.__pos.x - self.__size[0] // 2, self.__pos.x + self.__size[0] // 2
+        if abs(ball.position.x - self.__pos.x) > ball.radius + self.__size[0] // 2:
+            return None
+        if self.__active_length_range[0] == self.__active_length_range[1]:
+            return None
+        
+        x_range = self.x_range
         y_range = self.__pos.y - self.__size[1] // 2, self.__pos.y + self.__size[1] // 2
 
         # Check sides
@@ -343,12 +348,42 @@ class PhysicsSlab(PhysicsObject):
         return None
     
     def ckeck_onground(self, ball: "PhysicsBall") -> bool:
-        return self.__v.y == 0 \
-            and self.__pos.x - self.__size[0] // 2 <= ball.position.x \
-            <= self.__pos.x + self.__size[0] // 2
+        x_range = self.x_range
+        return self.__v.y == 0 and x_range[0] <= ball.position.x <= x_range[1]
     
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
         return Vector.unit_upward
+    
+    def check_rocket_collision(self, rocket: "PhysicsRocket") -> bool:
+        if self.__active_length_range[0] == self.__active_length_range[1]:
+            return False
+        if self.position.y != rocket.position.y:
+            return False
+        if rocket.facing == Direction.LEFT:
+            return rocket.x_left <= self.x_range[1]
+        return rocket.x_right >= self.x_range[0]
+    
+    def get_shrink_parameter(self, rocket: "PhysicsRocket") -> tuple[Direction, int]:
+        if not self.check_rocket_collision(rocket):
+            return Direction.NONE, 0
+        shrink_total_length = min(Constant.UNIT_SHRINK_LENGTH, self.active_length)
+        if rocket.facing == Direction.LEFT:
+            self.__active_length_range[1] -= shrink_total_length
+            while self.check_rocket_collision(rocket):
+                shrink_length = min(Constant.UNIT_SHRINK_LENGTH, self.active_length)
+                shrink_total_length += shrink_length
+                self.__active_length_range[1] -= shrink_length
+            return Direction.RIGHT, shrink_total_length
+        else: # rocket.facing == Direction.RIGHT
+            self.__active_length_range[0] += shrink_total_length
+            while self.check_rocket_collision(rocket):
+                shrink_length = min(Constant.UNIT_SHRINK_LENGTH, self.active_length)
+                shrink_total_length += shrink_length
+                self.__active_length_range[0] += shrink_length
+            return Direction.LEFT, shrink_total_length
+        
+    def reload(self) -> None:
+        self.__active_length_range = [0, self.__size[0]]
 
     @property
     def position(self) -> Vector:
@@ -357,6 +392,16 @@ class PhysicsSlab(PhysicsObject):
         changed by calling vector setters.
         '''
         return self.__pos
+    
+    @property
+    def x_range(self) -> tuple[NumberType, NumberType]:
+        '''
+        (Read-only) The range of x coordinate of the slab entity.
+        '''
+        return (
+            self.__pos.x - self.__size[0] // 2 + self.__active_length_range[0], 
+            self.__pos.x - self.__size[0] // 2 + self.__active_length_range[1]
+        )
 
     @property
     def y_top(self) -> NumberType:
@@ -364,6 +409,20 @@ class PhysicsSlab(PhysicsObject):
         (Read-only) The y coordinate of the top-side surface.
         '''
         return self.__pos.y + self.__size[1] // 2
+    
+    @property
+    def active_length(self) -> int:
+        '''
+        (Read-only) The length of the slab entity.
+        '''
+        return self.__active_length_range[1] - self.__active_length_range[0]
+    
+    @property
+    def active_length_range(self) -> tuple[int, int]:
+        '''
+        (Read-only) The active range of the slab entity.
+        '''
+        return tuple(self.__active_length_range)
     
     @property
     def size(self) -> tuple[int, int]:
@@ -380,19 +439,15 @@ class PhysicsSlab(PhysicsObject):
         '''
         return self.__v
     
-
-class PhysicsRocket:
+    
+class PhysicsRocket(PhysicsObject):
     '''
     The class representing physical interaction of a rocket.
     '''
-    class FACING(Enum):
-        LEFT = auto()
-        RIGHT = auto()
-
     __pos: Vector
     __v: Vector
     __halfsize: Vector
-    __facing: FACING
+    __facing: Direction
 
     def __init__(self, position: VectorType, velocity_x: NumberType) -> None:
         '''
@@ -405,15 +460,13 @@ class PhysicsRocket:
         '''
         self.__pos = Vector(position)
         self.__v = Vector(velocity_x, 0)
-        self.__size = Vector(150, 100)
         self.__halfsize = Vector(75, 50)
-        self.__facing = PhysicsRocket.FACING.LEFT \
-            if velocity_x < 0 else PhysicsRocket.FACING.RIGHT
+        self.__facing = Direction.LEFT if velocity_x < 0 else Direction.RIGHT
 
     def tick(self, dt: float) -> None:
         '''
-        Change the position and velocity of the slab with respect to time interval `dt`. 
-        Velocity is constant for a slab.
+        Change the position and velocity of the rocket with respect to time interval `dt`. 
+        Velocity is constant for a rocket.
         '''
         self.__pos += self.__v * dt
 
@@ -431,14 +484,14 @@ class PhysicsRocket:
             return None
         
         # Reflection to left-facing
-        if self.__facing == PhysicsRocket.FACING.RIGHT:
+        if self.__facing == Direction.RIGHT:
             reference.x = -reference.x
 
         # Right side: rebound
         if abs_ref_y <= 40 and -10 <= reference.x - ball.radius - self.__halfsize.x <= 0:
             return (
-                Vector.unit_rightward 
-                if self.__facing == PhysicsRocket.FACING.LEFT
+                Vector.unit_rightward
+                if self.__facing == Direction.LEFT
                 else Vector.unit_leftward
             )
         
@@ -505,8 +558,12 @@ class PhysicsRocket:
         
         return None
     
-    def check_slab_collision(self, slab: PhysicsSlab) -> ...:
-        pass
+    @property
+    def remove(self) -> bool:
+        return (
+            self.__pos.x + self.__halfsize[0] <= 0
+            or self.__pos.x - self.__halfsize[0] >= GeneralConstant.DEFAULT_SCREEN_SIZE[0]
+        )
     
     def ckeck_onground(self, ball: "PhysicsBall") -> bool:
         return False
@@ -521,6 +578,27 @@ class PhysicsRocket:
         changed by calling vector setters.
         '''
         return self.__pos
+    
+    @property
+    def x_left(self) -> NumberType:
+        '''
+        (Read-only) The x coordinate of the left side.
+        '''
+        return self.__pos.x - self.__halfsize.x
+    
+    @property
+    def x_right(self) -> NumberType:
+        '''
+        (Read-only) The x coordinate of the right side.
+        '''
+        return self.__pos.x + self.__halfsize.x
+    
+    @property
+    def facing(self) -> Direction:
+        '''
+        (Read-only) The facing of the rocket.
+        '''
+        return self.__facing
     
     @property
     def velocity(self):
@@ -545,6 +623,7 @@ class PhysicsBall(PhysicsObject):
     __bounceable: bool
     __path_length: LengthType
     __collision_exceptions: list[PhysicsObject]
+    __gameover: bool
     __debug_msgs: list[str]
 
     def __init__(self, position: VectorType, radius: LengthType) -> None:
@@ -566,6 +645,7 @@ class PhysicsBall(PhysicsObject):
         self.__bounceable = False
         self.__path_length = 0
         self.__collision_exceptions = []
+        self.__gameover = False
         self.__debug_msgs = []
 
     def tick(self, dt: float, objs: Iterable[PhysicsObject], bounce: bool) -> None:
@@ -628,7 +708,14 @@ class PhysicsBall(PhysicsObject):
         '''
         if obj in self.__collision_exceptions:
             return
-        if (collision_vector := obj.check_collision(self)) is None:
+        if isinstance(obj, PhysicsRocket):
+            if (collision_vector := obj.check_collision(self)) is None:
+                return
+            elif collision_vector is True:
+                self.__gameover = True
+                self.__debug_msgs.append("<crash: Rocket>")
+                return
+        elif (collision_vector := obj.check_collision(self)) is None:
             return
         if isinstance(obj, PhysicsBall):
             self.collide_with_ball(obj, collision_vector)
@@ -727,18 +814,18 @@ class PhysicsBall(PhysicsObject):
         '''
         self.__debug_msgs.append("<stuck removal: Wall>")
         if self.__onground:
-            if wall.facing == PhysicsWall.FACING.RIGHT:
+            if wall.facing == Direction.RIGHT:
                 self.__pos.x = wall.x_side + self.__radius
-            elif wall.facing == PhysicsWall.FACING.LEFT:
+            elif wall.facing == Direction.LEFT:
                 self.__pos.x = wall.x_side - self.__radius
             return
         
-        if wall.facing == PhysicsWall.FACING.RIGHT:
+        if wall.facing == Direction.RIGHT:
             self.__v.x = max(
                 self.__v.x,
                 _wall_reflect_velocity(wall.x_side - self.__pos.x + self.__radius)
             )
-        elif wall.facing == PhysicsWall.FACING.LEFT:
+        elif wall.facing == Direction.LEFT:
             self.__v.x = min(
                 self.__v.x,
                 -_wall_reflect_velocity(self.__pos.x - self.__radius - wall.x_side)
@@ -948,6 +1035,15 @@ class PhysicsBall(PhysicsObject):
         return self.__radius
     
     @property
+    def gameover(self) -> bool:
+        '''
+        To be documented
+        '''
+        gameover = self.__gameover
+        self.__gameover = False
+        return gameover
+    
+    @property
     def debug_msgs(self) -> tuple[str]:
         '''
         (Read-only) Read the debug messages of the ball. This will also clear the message list 
@@ -967,12 +1063,12 @@ class PhysicsParticle:
     __angle: NumberType
     __w: NumberType
     def __init__(
-            self, 
-            position: VectorType, 
-            velocity: VectorType, 
-            angle: NumberType, 
-            angular_frequency: NumberType
-        ) -> None:
+        self, 
+        position: VectorType, 
+        velocity: VectorType, 
+        angle: NumberType, 
+        angular_frequency: NumberType
+    ) -> None:
         self.__pos = Vector(position)
         self.__v = Vector(velocity)
         self.__angle = angle

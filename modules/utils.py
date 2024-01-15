@@ -1,5 +1,12 @@
 from collections import deque
 from time import time
+from enum import Enum, auto
+
+class Direction(Enum):
+    NONE = auto()
+    LEFT = auto()
+    RIGHT = auto()
+
 
 class Timer:
     __start_time: float
