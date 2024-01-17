@@ -196,7 +196,6 @@ class GameInterface(Interface):
         self.selection = GI.PS.OPTIONS
         self.requests: deque[GameRequest] = deque()
         self.debug_msgs: deque[GI.DebugMsgTimer] = deque()
-        self.last_mouse_pos = (0, 0)
         self.ball_display = DisplayableBall(
             Texture.BALL_FRAME, 
             Texture.BALL_SURFACE, 
@@ -429,7 +428,7 @@ class GameInterface(Interface):
                     return
                 self.selection = upper
                 self.__handle_event(GI.GE.CLICKRELEASE)
-                self.add_event(Event(pygame.MOUSEMOTION, pos=self.last_mouse_pos))
+                self.add_event(Event(pygame.MOUSEMOTION, pos=pygame.mouse.get_pos()))
             case GI.GE.SELECTION_DOWN if (
                 (GI.GS.RELOADING | GI.GS.LOADED) & self.status
                 and not (GI.GS.STARTING | GI.GS.STARTED) & self.status
@@ -438,7 +437,7 @@ class GameInterface(Interface):
                     return
                 self.selection = lower
                 self.__handle_event(GI.GE.CLICKRELEASE)
-                self.add_event(Event(pygame.MOUSEMOTION, pos=self.last_mouse_pos))
+                self.add_event(Event(pygame.MOUSEMOTION, pos=pygame.mouse.get_pos()))
             case GI.GE.SELECTION_ENTER if (
                 (GI.GS.RELOADING | GI.GS.LOADED) & self.status
                 and not (GI.GS.STARTING | GI.GS.STARTED) & self.status
@@ -505,8 +504,6 @@ class GameInterface(Interface):
                 self.requests.append(GameRequest.QUIT)
 
     def __event_converter(self, event: Event) -> GameEvent:
-        if event.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP):
-            self.last_mouse_pos = event.pos
         match event.type:
             case pygame.KEYDOWN:
                 match event.key:
@@ -568,7 +565,7 @@ class GameInterface(Interface):
             self.game.position_map(self.game.ground.position)
         )
         for slab in self.game.slabs:
-            slab.display.display(
+            slab.displayable.display(
                 center_screen, 
                 self.game.position_map(slab.entity.position)
             )
@@ -584,7 +581,7 @@ class GameInterface(Interface):
                     self.game.position_map(rocket.position)
                 )
         for particle in self.game.particles:
-            particle.display.display(
+            particle.displayable.display(
                 center_screen, 
                 self.game.position_map(particle.entity.position), 
                 particle.entity.deg_angle
