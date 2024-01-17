@@ -1,4 +1,4 @@
-from pygame import Surface, PixelArray
+from pygame import Surface
 from physics import (
     PhysicsGround, 
     PhysicsWall, 
@@ -8,12 +8,19 @@ from physics import (
     PhysicsParticle, 
     PhysicsObject
 )
-from vector import _isNumber, NumberType, VectorType, SizeType, Vector
-from display import Alignment, DisplayableSlab, DisplayableParticle, ColorType
+from vector import _isNumber, NumberType, VectorType, Vector
+from display import (
+    Alignment, 
+    Displayable, 
+    DisplayableBall, 
+    DisplayableSlab, 
+    DisplayableParticle
+)
 from errorlog import Log
 from constants import GeneralConstant, GameConstant as Constant, InterfaceConstant
 from resources import Texture, Path
-from utils import Direction
+from utils import Direction, LinkedList
+from abc import ABC, abstractmethod
 from collections import deque
 from itertools import product
 from random import uniform
@@ -21,13 +28,348 @@ from json import load as jsonload, dump as jsondump
 from string import ascii_letters
 from random import randint, choice
 from threading import Thread
-from typing import NamedTuple, Callable, Iterator, Generator
+from typing import NamedTuple, Callable, Iterable, Iterator, Generator
 
 def get_level(height: NumberType) -> int:
     return int(height) // Constant.SLAB_GAP + 1
 
 def get_height(level: int) -> int:
     return level * Constant.SLAB_GAP - Constant.SLAB_GAP // 2 - GeneralConstant.BALL_RADIUS
+
+
+class GameObject(ABC):
+    entity: PhysicsObject
+    displayable: Displayable
+    
+    @abstractmethod
+    def tick(self, dt: float, *args, **kwargs) -> None:
+        pass
+
+    @abstractmethod
+    def display(self, center_screen: Surface, position_map: Callable[[Vector], Vector]) -> None:
+        pass
+
+
+class Particle(GameObject):
+    entity: PhysicsParticle
+    displayable: DisplayableParticle
+
+    def __init__(
+        self, 
+        position: VectorType, 
+        velocity: VectorType, 
+        initial_angle: NumberType, 
+        angular_frequency: NumberType, 
+        surface: Surface
+    ) -> None:
+        self.entity = PhysicsParticle(position, velocity, initial_angle, angular_frequency)
+        self.displayable = DisplayableParticle(
+            surface, 
+            Alignment(
+                Alignment.Mode.CENTERED, 
+                Alignment.Mode.CENTERED, 
+                Alignment.Flag.REFERENCED, 
+                offset=GeneralConstant.SCREEN_OFFSET
+            )
+        )
+        self.largerside = max(surface.get_size())
+
+    def tick(self, dt: float) -> None:
+        self.entity.tick(dt)
+
+    def display(self, center_screen: Surface, position_map: Callable[[Vector], Vector]) -> None:
+        self.displayable.display(
+            center_screen, 
+            position_map(self.entity.position), 
+            self.entity.deg_angle
+        )
+
+    def check_removal(self, bottom_y: NumberType) -> bool:
+        position = self.entity.position
+        return (
+            position.y + self.largerside <= bottom_y
+            or position.x + self.largerside <= 0
+            or position.x - self.largerside >= GeneralConstant.DEFAULT_SCREEN_SIZE[0]
+        )
+    
+
+class ParticleGroup(LinkedList[Particle]):
+    def tick(self, dt: float, bottom_y: NumberType) -> None:
+        for node in self.node_iter:
+            node.data.tick(dt)
+            if node.data.check_removal(bottom_y):
+                self.pop(node)
+
+    def display(self, center_screen: Surface, position_map: Callable[[Vector], Vector]) -> None:
+        for particle in self.data_iter:
+            particle.display(center_screen, position_map)
+
+
+class Slab(GameObject):
+    entity: PhysicsSlab
+    displayable: DisplayableSlab
+
+    def __init__(
+        self, 
+        position: VectorType, 
+        length: int, 
+        width: int, 
+        velocity_x: NumberType
+    ) -> None:
+        self.entity = PhysicsSlab(position, (length, width), velocity_x)
+        self.displayable = DisplayableSlab(
+            Texture.SLAB_FRAME, 
+            Texture.SLAB_SURFACE, 
+            length, 
+            width, 
+            Alignment(
+                Alignment.Mode.CENTERED, 
+                Alignment.Mode.CENTERED, 
+                Alignment.Flag.REFERENCED, 
+                offset=GeneralConstant.SCREEN_OFFSET
+            )
+        )
+
+    def tick(self, dt: float) -> None:
+        self.entity.tick(dt)
+
+    def display(self, center_screen: Surface, position_map: Callable[[Vector], Vector]) -> None:
+        self.displayable.display(center_screen, position_map(self.entity.position))
+
+    def check_rocket_collision(
+        self, 
+        rocket: PhysicsRocket, 
+        particle_group: ParticleGroup
+    ) -> None:
+        direction, length = self.entity.get_shrink_parameter(rocket)
+        if length == 0:
+            return
+        if direction == Direction.LEFT:
+            particle_group.extend(
+                self.generate_particle(
+                    self.entity.active_length_range[0] - length, 
+                    rocket.position + Vector(rocket.halfsize.x, 0), 
+                    self.displayable.shrink_fromleft(length)
+                )
+            )
+        elif direction == Direction.RIGHT:
+            surface = self.displayable.shrink_fromright(length)
+            particle_group.extend(
+                self.generate_particle(
+                    self.entity.active_length_range[1], 
+                    rocket.position - Vector(rocket.halfsize.x, 0), 
+                    surface
+                )
+            )
+
+    def generate_particle(
+            self, 
+            range_left: int, 
+            rocket_head: Vector, 
+            surface: Surface
+        ) -> list[Particle]:
+        unit_range = (
+            (surface.get_size()[0] - 1) // Constant.UNIT_PARTICLE_SIZE + 1, 
+            (surface.get_size()[1] - 1) // Constant.UNIT_PARTICLE_SIZE + 1
+        )
+        surface_size = (
+            Constant.UNIT_PARTICLE_SIZE * unit_range[0], 
+            Constant.UNIT_PARTICLE_SIZE * unit_range[1]
+        )
+        new_surface = Surface(surface_size)
+        new_surface.blit(surface, (0, 0))
+        reference = (
+            self.entity.position + Vector(-self.entity.size[0], self.entity.size[1]) / 2
+            + Vector(range_left + 0.5, -0.5)
+        )
+        particles = []
+        unit_offset = Vector(Constant.UNIT_PARTICLE_SIZE, Constant.UNIT_PARTICLE_SIZE) / 2
+        for x, y in product(range(unit_range[0]), range(unit_range[1])):
+            position = reference + Vector(x, -y) * Constant.UNIT_PARTICLE_SIZE + unit_offset
+            particles.append(
+                Particle(
+                    position, 
+                    (position - rocket_head) * Constant.PARTICLE_OFFSET_SPEED_CONSTANT
+                    + Vector(
+                        uniform(
+                            -Constant.PARTICLE_RANDOM_SPEED, 
+                            Constant.PARTICLE_RANDOM_SPEED
+                        ), 
+                        uniform(
+                            -Constant.PARTICLE_RANDOM_SPEED, 
+                            Constant.PARTICLE_RANDOM_SPEED
+                        )
+                    ), 
+                    0, 
+                    uniform(
+                        -Constant.PARTICLE_RANDOM_ANGULAR_FREQUENCY, 
+                        Constant.PARTICLE_RANDOM_ANGULAR_FREQUENCY
+                    ), 
+                    new_surface.subsurface(
+                        (x * Constant.UNIT_PARTICLE_SIZE, y * Constant.UNIT_PARTICLE_SIZE), 
+                        (Constant.UNIT_PARTICLE_SIZE, Constant.UNIT_PARTICLE_SIZE)
+                    )
+                )
+            )
+        return particles
+
+
+class Rocket(GameObject):
+    entity: PhysicsRocket
+    displayable: Displayable
+    __left_displayable = Displayable(
+        Texture.ROCKET_FACING_LEFT, 
+        Alignment(
+            Alignment.Mode.CENTERED, 
+            Alignment.Mode.CENTERED, 
+            Alignment.Flag.REFERENCED, 
+            offset=GeneralConstant.SCREEN_OFFSET
+        )
+    )
+    __right_displayable = Displayable(
+        Texture.ROCKET_FACING_RIGHT, 
+        Alignment(
+            Alignment.Mode.CENTERED, 
+            Alignment.Mode.CENTERED, 
+            Alignment.Flag.REFERENCED, 
+            offset=InterfaceConstant.SCREEN_OFFSET
+        )
+    )
+
+    def __init__(self, position: Vector, velocity_x: NumberType) -> None:
+        self.entity = PhysicsRocket(position, velocity_x)
+        self.displayable = (
+            Rocket.__left_displayable 
+            if self.entity.facing == Direction.LEFT
+            else Rocket.__right_displayable
+        )
+
+    def tick(self, dt: float) -> None:
+        self.entity.tick(dt)
+    
+    def display(self, center_screen: Surface, position_map: Callable[[Vector], Vector]) -> None:
+        self.displayable.display(center_screen, position_map(self.entity.position))
+
+
+class RocketGroup(LinkedList[Rocket]):
+    def tick(self, dt: float) -> None:
+        for node in self.node_iter:
+            node.data.tick(dt)
+            if node.data.entity.remove:
+                self.pop(node)
+    
+    def display(self, center_screen: Surface, position_map: Callable[[Vector], Vector]) -> None:
+        for rocket in self.data_iter:
+            rocket.display(center_screen, position_map)
+
+
+class Ball(GameObject):
+    entity: PhysicsBall
+    displayable: DisplayableBall
+    remove: bool
+
+    def __init__(self, position: Vector) -> None:
+        self.entity = PhysicsBall(position, GeneralConstant.BALL_RADIUS)
+        self.displayable = DisplayableBall(
+            Texture.BALL_FRAME, 
+            Texture.BALL_SURFACE, 
+            Alignment(
+                Alignment.Mode.CENTERED, 
+                Alignment.Mode.CENTERED, 
+                Alignment.Flag.REFERENCED, 
+                GeneralConstant.SCREEN_OFFSET
+            )
+        )
+        self.remove = False
+
+    def tick(
+        self, 
+        dt: float, 
+        bounce: bool, 
+        *objs: Iterable[PhysicsObject], 
+        particle_group: ParticleGroup
+    ) -> None:
+        self.entity.tick(dt, bounce, *objs)
+        if self.entity.crash_on_rocket:
+            particle_group.extend(self.generate_particle())
+            self.remove = True
+
+    def display(self, center_screen: Vector, position_map: Callable[[Vector], Vector]) -> None:
+        self.displayable.display(
+            center_screen, 
+            position_map(self.entity.position), 
+            self.entity.deg_angle
+        )
+
+    def check_removal(self, bottom_y: NumberType) -> bool:
+        return self.remove or self.entity.position.y + self.entity.radius <= bottom_y
+
+    def generate_particle(self) -> list[Particle]:
+        surface = self.displayable.surface
+        original_surface_size = surface.get_size()
+        unit_range = (
+            (original_surface_size[0] - 1) // Constant.UNIT_PARTICLE_SIZE + 1, 
+            (original_surface_size[1] - 1) // Constant.UNIT_PARTICLE_SIZE + 1
+        )
+        surface_size = (
+            Constant.UNIT_PARTICLE_SIZE * unit_range[0], 
+            Constant.UNIT_PARTICLE_SIZE * unit_range[1]
+        )
+        new_surface = Surface(surface_size)
+        new_surface.blit(surface, (0, 0))
+        reference = (
+            self.entity.position 
+            + Vector(-original_surface_size[0], original_surface_size[1]) / 2 
+            + Vector(0.5, -0.5)
+        )
+        particles = []
+        unit_offset = Vector(Constant.UNIT_PARTICLE_SIZE, Constant.UNIT_PARTICLE_SIZE) / 2
+        for x, y in product(range(unit_range[0]), range(unit_range[1])):
+            position = reference + Vector(x, -y) * Constant.UNIT_PARTICLE_SIZE + unit_offset
+            particles.append(
+                Particle(
+                    position, 
+                    position * Constant.PARTICLE_OFFSET_SPEED_CONSTANT
+                    + Vector(
+                        uniform(
+                            -Constant.PARTICLE_RANDOM_SPEED, 
+                            Constant.PARTICLE_RANDOM_SPEED
+                        ), 
+                        uniform(
+                            -Constant.PARTICLE_RANDOM_SPEED, 
+                            Constant.PARTICLE_RANDOM_SPEED
+                        )
+                    ), 
+                    0, 
+                    uniform(
+                        -Constant.PARTICLE_RANDOM_ANGULAR_FREQUENCY, 
+                        Constant.PARTICLE_RANDOM_ANGULAR_FREQUENCY
+                    ), 
+                    new_surface.subsurface(
+                        (x * Constant.UNIT_PARTICLE_SIZE, y * Constant.UNIT_PARTICLE_SIZE), 
+                        (Constant.UNIT_PARTICLE_SIZE, Constant.UNIT_PARTICLE_SIZE)
+                    )
+                )
+            )
+        return particles
+    
+
+class BallGroup(LinkedList[Ball]):
+    def tick(
+        self, 
+        dt: float, 
+        *objs: Iterable[PhysicsObject], 
+        particle_group: ParticleGroup, 
+        bottom_y: NumberType
+    ) -> None:
+        for node in self.node_iter:
+            node.data.tick(dt, False, *objs, particle_group=particle_group)
+            if node.data.check_removal(bottom_y):
+                self.pop(node)
+
+    def display(self, center_screen: Surface, position_map: Callable[[Vector], Vector]) -> None:
+        for ball in self.data_iter:
+            ball.display(center_screen, position_map)
 
 
 class Level(NamedTuple):
@@ -116,106 +458,6 @@ class LevelGenerator:
         To be documented
         '''
         self.__current = 0
-
-
-class Slab:
-    def __init__(
-        self, 
-        position: VectorType, 
-        length: int, 
-        width: int, 
-        velocity_x: NumberType
-    ) -> None:
-        self.entity = PhysicsSlab(position, (length, width), velocity_x)
-        self.display = DisplayableSlab(
-            Texture.SLAB_FRAME, 
-            Texture.SLAB_SURFACE, 
-            length, 
-            width, 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                offset=InterfaceConstant.SCREEN_OFFSET
-            )
-        )
-
-    def generate_particle(self, range_left: int, surface: Surface) -> "list[Particle]":
-        unit_range = (
-            (surface.get_size()[0] - 1) // Constant.UNIT_PARTICLE_SIZE + 1, 
-            (surface.get_size()[1] - 1) // Constant.UNIT_PARTICLE_SIZE + 1
-        )
-        surface_size = (
-            Constant.UNIT_PARTICLE_SIZE * unit_range[0], 
-            Constant.UNIT_PARTICLE_SIZE * unit_range[1]
-        )
-        new_surface = Surface(surface_size)
-        new_surface.blit(surface, (0, 0))
-        surface_center = Vector(surface_size) / 2 - Vector(0.5, 0.5)
-        reference = (
-            self.entity.position - Vector(self.entity.size) / 2
-            + Vector(surface_size) / 2 + Vector(range_left + 0.5, 0.5)
-        )
-        particles = []
-        unit_offset = Vector(Constant.UNIT_PARTICLE_SIZE, Constant.UNIT_PARTICLE_SIZE) / 2
-        for x, y in product(range(unit_range[0]), range(unit_range[1])):
-            offset = Vector(x, y) * Constant.UNIT_PARTICLE_SIZE + unit_offset
-            particles.append(
-                Particle(
-                    reference + offset, 
-                    (offset - surface_center) * Constant.PARTICLE_OFFSET_SPEED_CONSTANT
-                    + Vector(
-                        uniform(
-                            -Constant.PARTICLE_RANDOM_SPEED, 
-                            Constant.PARTICLE_RANDOM_SPEED
-                        ), 
-                        uniform(
-                            -Constant.PARTICLE_RANDOM_SPEED, 
-                            Constant.PARTICLE_RANDOM_SPEED
-                        )
-                    ), 
-                    0, 
-                    uniform(
-                        -Constant.PARTICLE_RANDOM_ANGULAR_FREQUENCY, 
-                        Constant.PARTICLE_RANDOM_ANGULAR_FREQUENCY
-                    ), 
-                    new_surface.subsurface(
-                        (x * Constant.UNIT_PARTICLE_SIZE, y * Constant.UNIT_PARTICLE_SIZE), 
-                        (Constant.UNIT_PARTICLE_SIZE, Constant.UNIT_PARTICLE_SIZE)
-                    )
-                )
-            )
-        return particles
-
-
-class Particle:
-    def __init__(
-        self, 
-        position: VectorType, 
-        velocity: VectorType, 
-        initial_angle: NumberType, 
-        angular_frequency: NumberType, 
-        surface: Surface
-    ) -> None:
-        self.entity = PhysicsParticle(position, velocity, initial_angle, angular_frequency)
-        self.display = DisplayableParticle(
-            surface, 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                offset=InterfaceConstant.SCREEN_OFFSET
-            )
-        )
-        self.largerside = max(surface.get_size())
-
-    def check_removal(self, bottom_y: NumberType) -> bool:
-        position = self.entity.position
-        return (
-            position.y + self.largerside <= bottom_y
-            or position.x + self.largerside <= 0
-            or position.x - self.largerside >= GeneralConstant.DEFAULT_SCREEN_SIZE[0]
-        )
         
 
 class SlabLevel:
@@ -261,7 +503,7 @@ class SlabLevel:
                 if (slab := self.__slabs[-1]).entity.position.x >= boundary:
                     slab.entity.position.x -= cycle_length
                     slab.entity.reload()
-                    slab.display.reload()
+                    slab.displayable.reload()
                     self.__slabs.appendleft(self.__slabs.pop())
             self.__recycle = recycle
         elif level.velocity < 0:
@@ -270,7 +512,7 @@ class SlabLevel:
                 if (slab := self.__slabs[0]).entity.position.x <= boundary:
                     slab.entity.position.x += cycle_length
                     slab.entity.reload()
-                    slab.display.reload()
+                    slab.displayable.reload()
                     self.__slabs.append(self.__slabs.popleft())
             self.__recycle = recycle
         else:
@@ -335,13 +577,15 @@ class Game:
                     continue
                 if direction == Direction.LEFT:
                     self.particles += slab.generate_particle(
-                        slab.entity.active_length_range[0], 
-                        slab.display.shrink_fromleft(length)
+                        slab.entity.active_length_range[0] - length, 
+                        rocket.position + Vector(rocket.halfsize.x, 0), 
+                        slab.displayable.shrink_fromleft(length)
                     )
                 elif direction == Direction.RIGHT:
-                    surface = slab.display.shrink_fromright(length)
+                    surface = slab.displayable.shrink_fromright(length)
                     self.particles += slab.generate_particle(
                         slab.entity.active_length_range[1], 
+                        rocket.position - Vector(rocket.halfsize.x, 0), 
                         surface
                     )
             if not rocket.remove:
@@ -358,11 +602,11 @@ class Game:
             return
         
         self.ball.tick(
-            dt, 
-            self.objects,
-            bounce
+            dt,
+            bounce, 
+            self.objects
         )
-        if self.ball.gameover:
+        if self.ball.crash_on_rocket:
             self.gameover = True
             return
         if (pos_y := self.ball.position.y) + self.ball.radius <= bottom_y:
