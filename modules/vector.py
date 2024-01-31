@@ -48,6 +48,7 @@ class Vector:
     '''
     A two dimensional vector.
     '''
+    __slots__ = ("__x", "__y")
     __x: NumberType
     __y: NumberType
     @overload
@@ -75,6 +76,16 @@ class Vector:
             return
         raise TypeError(f"Expected 1 or 2 arguments, got {length}")
     
+    @classmethod
+    def __direct_new(cls, __x: NumberType, __y: NumberType) -> "Vector":
+        '''
+        Create a new vector without type checking.
+        '''
+        vec = object.__new__(cls)
+        vec.__x = __x
+        vec.__y = __y
+        return vec
+    
     def __eq__(self, __v: VectorType) -> bool:
         if isinstance(__v, Vector):
             return self.__x == __v.__x and self.__y == __v.__y
@@ -84,17 +95,17 @@ class Vector:
         return self.__x == __v[0] and self.__y == __v[1]
         
     def __neg__(self) -> "Vector":
-        return Vector(-self.__x, -self.__y)
+        return Vector.__direct_new(-self.__x, -self.__y)
 
     def __add__(self, __v: "Vector") -> "Vector":
         if not isinstance(__v, Vector):
             return NotImplemented
-        return Vector(self.__x + __v.__x, self.__y + __v.__y)
+        return Vector.__direct_new(self.__x + __v.__x, self.__y + __v.__y)
 
     def __sub__(self, __v: "Vector") -> "Vector":
         if not isinstance(__v, Vector):
             return NotImplemented
-        return Vector(self.__x - __v.__x, self.__y - __v.__y)
+        return Vector.__direct_new(self.__x - __v.__x, self.__y - __v.__y)
 
     @overload
     def __mul__(self, __c: NumberType) -> "Vector": ...
@@ -108,7 +119,7 @@ class Vector:
         Operate the inner product if the argument is a `Vector`.
         '''
         if _isNumber(arg):
-            return Vector(arg * self.__x, arg * self.__y)
+            return Vector.__direct_new(arg * self.__x, arg * self.__y)
         if isinstance(arg, Vector):
             return self.__x * arg.x + self.__y * arg.y
         return NotImplemented
@@ -116,26 +127,26 @@ class Vector:
     def __rmul__(self, __c: NumberType) -> "Vector":
         if not _isNumber(__c):
             return NotImplemented
-        return Vector(__c * self.__x, __c * self.__y)
+        return Vector.__direct_new(__c * self.__x, __c * self.__y)
     
     def __imul__(self, __c: NumberType) -> "Vector":
         if not _isNumber(__c):
             return NotImplemented
-        return Vector(__c * self.__x, __c * self.__y)
+        return Vector.__direct_new(__c * self.__x, __c * self.__y)
     
     def __truediv__(self, __c: NumberType) -> "Vector":
         if not _isNumber(__c):
             return NotImplemented
         if __c == 0:
             raise ZeroDivisionError
-        return Vector(self.__x / __c, self.__y / __c)
+        return Vector.__direct_new(self.__x / __c, self.__y / __c)
     
     def __floordiv__(self, __c: NumberType) -> "Vector":
         if not _isNumber(__c):
             return NotImplemented
         if __c == 0:
             raise ZeroDivisionError
-        return Vector(self.__x // __c, self.__y // __c)
+        return Vector.__direct_new(self.__x // __c, self.__y // __c)
 
     def __getitem__(self, __i: Literal[0, 1]) -> NumberType:
         if not isinstance(__i, int):
@@ -146,7 +157,7 @@ class Vector:
             return self.__y
         raise IndexError(f"Expected integer index 0 or 1, got {__i}")
     
-    def __setitem__(self, __i: int, __value: NumberType) -> None:
+    def __setitem__(self, __i: Literal[0, 1], __value: NumberType) -> None:
         if not isinstance(__i, int):
             raise TypeError(f"Expected integer index 0 or 1, got {type(__i).__name__}")
         if not __i in (0, 1):
@@ -178,11 +189,11 @@ class Vector:
         '''
         Return a copied vector.
         '''
-        return Vector(self.__x, self.__y)
+        return Vector.__direct_new(self.__x, self.__y)
 
     def project_on(self, __v: "Vector") -> "Vector":
         '''
-        Return the projected vector onto `__v`.
+        Return the projected vector onto ``__v``.
         '''
         if __v.is_zerovec:
             raise ValueError("Cannot project a vector onto a zero vector")
@@ -259,7 +270,7 @@ class Vector:
         '''
         Return a zero vector.
         '''
-        return cls(0, 0)
+        return cls.__direct_new(0, 0)
     
     @classmethod
     @property
@@ -267,7 +278,7 @@ class Vector:
         '''
         Return a unit vector pointing upward.
         '''
-        return cls(0, 1)
+        return cls.__direct_new(0, 1)
     
     @classmethod
     @property
@@ -275,7 +286,7 @@ class Vector:
         '''
         Return a unit vector pointing upward.
         '''
-        return cls(0, -1)
+        return cls.__direct_new(0, -1)
     
     @classmethod
     @property
@@ -283,7 +294,7 @@ class Vector:
         '''
         Return a unit vector pointing rightward.
         '''
-        return cls(-1, 0)
+        return cls.__direct_new(-1, 0)
     
     @classmethod
     @property
@@ -291,4 +302,4 @@ class Vector:
         '''
         Return a unit vector pointing rightward.
         '''
-        return cls(1, 0)
+        return cls.__direct_new(1, 0)
