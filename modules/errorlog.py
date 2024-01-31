@@ -6,6 +6,8 @@ from traceback import print_exception
 from datetime import datetime
 
 class Log:
+    class OutOfLimit(Exception):
+        pass
     __LOGS_LEFT = Constant.MAX_LOGS
 
     @classmethod
@@ -16,6 +18,6 @@ class Log:
                 print_exception(error, file=file)
                 print(file=file)
         if cls.__LOGS_LEFT == 0:
-            exit(1)
+            raise Log.OutOfLimit
         cls.__LOGS_LEFT -= 1
         Thread(target=write).start()
