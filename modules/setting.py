@@ -4,7 +4,6 @@ from resources import Path
 from dataclasses import dataclass
 from json import load as jsonload, dump as jsondump
 from errorlog import Log
-from threading import Thread
 
 @dataclass
 class Setting:
@@ -82,19 +81,17 @@ class Setting:
         return setting
     
     def save(self) -> None:
-        def thread_save() -> None:
-            try:
-                with open(Path.SETTING, "w") as file:
-                    jsondump(
-                        {
-                            "language": self.language.name, 
-                            "FPS": self.FPS, 
-                            "BGM Volume": self.BGM_Volume, 
-                            "SE Volume": self.SE_Volume
-                        }, 
-                        file, 
-                        indent=4
-                    )
-            except BaseException as e:
-                Log.log(e)
-        Thread(target=thread_save).start()
+        try:
+            with open(Path.SETTING, "w") as file:
+                jsondump(
+                    {
+                        "language": self.language.name, 
+                        "FPS": self.FPS, 
+                        "BGM Volume": self.BGM_Volume, 
+                        "SE Volume": self.SE_Volume
+                    }, 
+                    file, 
+                    indent=4
+                )
+        except BaseException as e:
+            Log.log(e)

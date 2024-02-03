@@ -1,14 +1,10 @@
 from errorlog import Log
 from constants import DataConstant as Constant
 from resources import Path
-from functools import reduce
 from random import randint, choice
-from string import ascii_letters
 from json import load as jsonload, dump as jsondump, JSONDecodeError
-from threading import Thread
-from collections import deque
 from enum import Flag, auto, CONFORM
-from typing import Literal, Any
+from typing import Literal
 
 def integer_encrypt(number: int) -> str:
     def get_digits(number: int, base: int = 2) -> list[int]:
@@ -201,19 +197,17 @@ class Datas:
 
     @classmethod
     def save(cls) -> None:
-        def thread_save() -> None:
-            try:
-                with open(Path.DATAS, "w") as file:
-                    jsondump(
-                        {
-                            "achievement": cls.achievement.encrypt(),
-                            "highscore": cls.highscore.encrypt()
-                        }, 
-                        file, 
-                        indent=4
-                    )
-            except BaseException as e:
-                Log.log(e)
-        Thread(target=thread_save).start()
+        try:
+            with open(Path.DATAS, "w") as file:
+                jsondump(
+                    {
+                        "achievement": cls.achievement.encrypt(),
+                        "highscore": cls.highscore.encrypt()
+                    }, 
+                    file, 
+                    indent=4
+                )
+        except BaseException as e:
+            Log.log(e)
 
 Datas.load()

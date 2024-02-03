@@ -16,19 +16,22 @@ from display import (
     DisplayableSlab, 
     DisplayableParticle
 )
+from data import Achievement, HighScore, Datas
 from errorlog import Log
-from constants import GeneralConstant, GameConstant as Constant, InterfaceConstant
-from resources import Texture, Path
-from utils import Direction, LinkedList
+from constants import (
+    GeneralConstant, 
+    GameConstant as Constant, 
+    InterfaceConstant, 
+    DataConstant
+)
+from resources import Texture, Color
+from utils import Direction, LinkedList, Timer, Ticker, Chance, LinearRange
 from abc import ABC, abstractmethod
 from collections import deque
 from itertools import product
 from random import uniform
-from json import load as jsonload, dump as jsondump
-from string import ascii_letters
-from random import randint, choice
-from threading import Thread
-from typing import NamedTuple, Callable, Iterable, Iterator, Generator
+from json import load as jsonload
+from typing import Literal, NamedTuple, Callable, Iterable, Iterator, Generator
 
 def get_level(height: NumberType) -> int:
     return int(height) // Constant.SLAB_GAP + 1
@@ -48,6 +51,12 @@ class GameObject(ABC):
     @abstractmethod
     def display(self, center_screen: Surface, position_map: Callable[[Vector], Vector]) -> None:
         pass
+    
+def entity_converter(
+    object_group: LinkedList[GameObject]
+) -> Generator[PhysicsObject, None, None]:
+    for object in object_group.data_iter:
+        yield object.entity
 
 
 class Particle(GameObject):
@@ -105,6 +114,31 @@ class ParticleGroup(LinkedList[Particle]):
             particle.display(center_screen, position_map)
 
 
+class Ground(GameObject):
+    entity: PhysicsGround
+    displayable: Displayable
+
+    def __init__(self) -> None:
+        self.entity = PhysicsGround(Constant.GROUND_Y)
+        self.displayable = Displayable(
+            Texture.GROUND, 
+            Alignment(
+                Alignment.Mode.CENTERED, 
+                Alignment.Mode.TOP, 
+                Alignment.Flag.FILL, 
+                Alignment.Flag.REFERENCED, 
+                facing=Alignment.Facing.DOWN, 
+                offset=GeneralConstant.SCREEN_OFFSET
+            )
+        )
+
+    def tick(self, dt: float) -> None:
+        pass
+
+    def display(self, center_screen: Surface, position_map: Callable[[Vector], Vector]) -> None:
+        self.displayable.display(center_screen, position_map(self.entity.position))
+
+
 class Slab(GameObject):
     entity: PhysicsSlab
     displayable: DisplayableSlab
@@ -138,17 +172,17 @@ class Slab(GameObject):
 
     def check_rocket_collision(
         self, 
-        rocket: PhysicsRocket, 
+        rocket: "Rocket", 
         particle_group: ParticleGroup
     ) -> None:
-        direction, length = self.entity.get_shrink_parameter(rocket)
+        direction, length = self.entity.get_shrink_parameter(rocket_entity := rocket.entity)
         if length == 0:
             return
         if direction == Direction.LEFT:
             particle_group.extend(
                 self.generate_particle(
                     self.entity.active_length_range[0] - length, 
-                    rocket.position + Vector(rocket.halfsize.x, 0), 
+                    rocket_entity.position + Vector(rocket_entity.halfsize.x, 0), 
                     self.displayable.shrink_fromleft(length)
                 )
             )
@@ -157,7 +191,7 @@ class Slab(GameObject):
             particle_group.extend(
                 self.generate_particle(
                     self.entity.active_length_range[1], 
-                    rocket.position - Vector(rocket.halfsize.x, 0), 
+                    rocket_entity.position - Vector(rocket_entity.halfsize.x, 0), 
                     surface
                 )
             )
@@ -177,6 +211,8 @@ class Slab(GameObject):
             Constant.UNIT_PARTICLE_SIZE * unit_range[1]
         )
         new_surface = Surface(surface_size)
+        new_surface.fill(Color.TRANSPARENT_COLORKEY)
+        new_surface.set_colorkey(Color.TRANSPARENT_COLORKEY)
         new_surface.blit(surface, (0, 0))
         reference = (
             self.entity.position + Vector(-self.entity.size[0], self.entity.size[1]) / 2
@@ -189,15 +225,15 @@ class Slab(GameObject):
             particles.append(
                 Particle(
                     position, 
-                    (position - rocket_head) * Constant.PARTICLE_OFFSET_SPEED_CONSTANT
+                    (position - rocket_head) * Constant.SLAB_PARTICLE_OFFSET_SPEED
                     + Vector(
                         uniform(
-                            -Constant.PARTICLE_RANDOM_SPEED, 
-                            Constant.PARTICLE_RANDOM_SPEED
+                            -Constant.SLAB_PARTICLE_RANDOM_SPEED, 
+                            Constant.SLAB_PARTICLE_RANDOM_SPEED
                         ), 
                         uniform(
-                            -Constant.PARTICLE_RANDOM_SPEED, 
-                            Constant.PARTICLE_RANDOM_SPEED
+                            -Constant.SLAB_PARTICLE_RANDOM_SPEED, 
+                            Constant.SLAB_PARTICLE_RANDOM_SPEED
                         )
                     ), 
                     0, 
@@ -232,17 +268,18 @@ class Rocket(GameObject):
             Alignment.Mode.CENTERED, 
             Alignment.Mode.CENTERED, 
             Alignment.Flag.REFERENCED, 
-            offset=InterfaceConstant.SCREEN_OFFSET
+            offset=InterfaceConstant.Game.SCREEN_OFFSET
         )
     )
 
-    def __init__(self, position: Vector, velocity_x: NumberType) -> None:
+    def __init__(self, position: Vector, velocity_x: NumberType, issuper: bool) -> None:
         self.entity = PhysicsRocket(position, velocity_x)
         self.displayable = (
             Rocket.__left_displayable 
             if self.entity.facing == Direction.LEFT
             else Rocket.__right_displayable
         )
+        self.issuper = issuper
 
     def tick(self, dt: float) -> None:
         self.entity.tick(dt)
@@ -252,11 +289,15 @@ class Rocket(GameObject):
 
 
 class RocketGroup(LinkedList[Rocket]):
-    def tick(self, dt: float) -> None:
+    def tick(self, dt: float) -> Rocket | None:
+        removed = None
         for node in self.node_iter:
             node.data.tick(dt)
             if node.data.entity.remove:
+                if node.data.issuper:
+                    removed = node.data
                 self.pop(node)
+        return removed
     
     def display(self, center_screen: Surface, position_map: Callable[[Vector], Vector]) -> None:
         for rocket in self.data_iter:
@@ -268,18 +309,45 @@ class Ball(GameObject):
     displayable: DisplayableBall
     remove: bool
 
-    def __init__(self, position: Vector) -> None:
+    def __init__(
+        self, 
+        position: VectorType, 
+        type: Literal["normal", "unbounceable", "event"]
+    ) -> None:
         self.entity = PhysicsBall(position, GeneralConstant.BALL_RADIUS)
-        self.displayable = DisplayableBall(
-            Texture.BALL_FRAME, 
-            Texture.BALL_SURFACE, 
-            Alignment(
-                Alignment.Mode.CENTERED, 
-                Alignment.Mode.CENTERED, 
-                Alignment.Flag.REFERENCED, 
-                GeneralConstant.SCREEN_OFFSET
+        if type == "normal":
+            self.displayable = DisplayableBall(
+                Texture.BALL_FRAME, 
+                Texture.BALL_SURFACE, 
+                Alignment(
+                    Alignment.Mode.CENTERED, 
+                    Alignment.Mode.CENTERED, 
+                    Alignment.Flag.REFERENCED, 
+                    offset=GeneralConstant.SCREEN_OFFSET
+                )
             )
-        )
+        elif type == "unbounceable":
+            self.displayable = DisplayableBall(
+                Texture.BALL_FRAME_UNBOUNCEABLE, 
+                Texture.BALL_SURFACE, 
+                Alignment(
+                    Alignment.Mode.CENTERED, 
+                    Alignment.Mode.CENTERED, 
+                    Alignment.Flag.REFERENCED, 
+                    offset=GeneralConstant.SCREEN_OFFSET
+                )
+            )
+        else:
+            self.displayable = DisplayableBall(
+                Texture.BALL_FRAME_EVENT, 
+                Texture.BALL_SURFACE_EVENT, 
+                Alignment(
+                    Alignment.Mode.CENTERED, 
+                    Alignment.Mode.CENTERED, 
+                    Alignment.Flag.REFERENCED, 
+                    offset=GeneralConstant.SCREEN_OFFSET
+                )
+            )
         self.remove = False
 
     def tick(
@@ -288,11 +356,12 @@ class Ball(GameObject):
         bounce: bool, 
         *objs: Iterable[PhysicsObject], 
         particle_group: ParticleGroup
-    ) -> None:
-        self.entity.tick(dt, bounce, *objs)
+    ) -> bool:
+        collided = self.entity.tick(dt, bounce, *objs)
         if self.entity.crash_on_rocket:
             particle_group.extend(self.generate_particle())
             self.remove = True
+        return collided
 
     def display(self, center_screen: Vector, position_map: Callable[[Vector], Vector]) -> None:
         self.displayable.display(
@@ -305,8 +374,7 @@ class Ball(GameObject):
         return self.remove or self.entity.position.y + self.entity.radius <= bottom_y
 
     def generate_particle(self) -> list[Particle]:
-        surface = self.displayable.surface
-        original_surface_size = surface.get_size()
+        original_surface_size = self.displayable.surface.get_size()
         unit_range = (
             (original_surface_size[0] - 1) // Constant.UNIT_PARTICLE_SIZE + 1, 
             (original_surface_size[1] - 1) // Constant.UNIT_PARTICLE_SIZE + 1
@@ -316,7 +384,9 @@ class Ball(GameObject):
             Constant.UNIT_PARTICLE_SIZE * unit_range[1]
         )
         new_surface = Surface(surface_size)
-        new_surface.blit(surface, (0, 0))
+        new_surface.fill(Color.TRANSPARENT_COLORKEY)
+        new_surface.set_colorkey(Color.TRANSPARENT_COLORKEY)
+        new_surface.blit(self.displayable.surface, (0, 0))
         reference = (
             self.entity.position 
             + Vector(-original_surface_size[0], original_surface_size[1]) / 2 
@@ -329,15 +399,15 @@ class Ball(GameObject):
             particles.append(
                 Particle(
                     position, 
-                    position * Constant.PARTICLE_OFFSET_SPEED_CONSTANT
+                    (position - self.entity.position) * Constant.BALL_PARTICLE_OFFSET_SPEED
                     + Vector(
                         uniform(
-                            -Constant.PARTICLE_RANDOM_SPEED, 
-                            Constant.PARTICLE_RANDOM_SPEED
+                            -Constant.BALL_PARTICLE_RANDOM_SPEED, 
+                            Constant.BALL_PARTICLE_RANDOM_SPEED
                         ), 
                         uniform(
-                            -Constant.PARTICLE_RANDOM_SPEED, 
-                            Constant.PARTICLE_RANDOM_SPEED
+                            -Constant.BALL_PARTICLE_RANDOM_SPEED, 
+                            Constant.BALL_PARTICLE_RANDOM_SPEED
                         )
                     ), 
                     0, 
@@ -533,133 +603,391 @@ class SlabLevel:
     def reload(cls) -> None:
         cls.GENERATE_HEIGHT = Constant.GROUND_Y + Constant.SLAB_GAP
         cls.LEVEL = 2
+
+
+class BallStatus(NamedTuple):
+    time: float
+    position: Vector
+    velocity: Vector
+    angular_frequency: NumberType
+    level: int
+    ground: PhysicsObject | None
+    bounceable: bool
+
+    @classmethod
+    def record(cls, game: "Game") -> "BallStatus":
+        return cls(
+            time=game.timer.read(), 
+            position=game.ball.entity.position, 
+            velocity=game.ball.entity.velocity, 
+            angular_frequency=game.ball.entity.angular_frequency, 
+            level=get_level(game.ball.entity.position.y), 
+            ground=game.ball.entity.ground, 
+            bounceable=game.ball.entity.bounceable
+        )
         
 
 class Game:
+    class RocketEvent:
+        def __init__(self, game: "Game") -> None:
+            self.game = game
+            self.ticker = Ticker(
+                Constant.EVENT_ROCKET_TICK, 
+                False, 
+                Constant.EVENT_ROCKET_COOLDOWNS[0]
+            )
+            self.chance_generator = LinearRange(
+                Constant.EVENT_ROCKET_LEVELS[0], 
+                Constant.EVENT_ROCKET_LEVELS[1], 
+                Constant.EVENT_ROCKET_CHANCES[0], 
+                Constant.EVENT_ROCKET_CHANCES[1]
+            )
+            self.cooldown_generator = LinearRange(
+                Constant.EVENT_ROCKET_LEVELS[0], 
+                Constant.EVENT_ROCKET_LEVELS[1], 
+                Constant.EVENT_ROCKET_COOLDOWNS[0], 
+                Constant.EVENT_ROCKET_COOLDOWNS[1]
+            )
+
+        def start(self) -> None:
+            self.ticker.skip_cooldown()
+
+        def reload(self) -> None:
+            self.ticker = Ticker(
+                Constant.EVENT_ROCKET_TICK, 
+                False, 
+                Constant.EVENT_ROCKET_COOLDOWNS[0]
+            )
+
+        def tick(self) -> None:
+            if self.ticker.tick() and Chance(self.chance_generator.get_value(self.game.level)):
+                self.generate(
+                    self.game.level >= Constant.EVENT_ROCKET_LEVELS[1]
+                    and Chance(Constant.EVENT_SUPERROCKET_CHANCE)
+                )
+                self.ticker = Ticker(
+                    Constant.EVENT_ROCKET_TICK, 
+                    True, 
+                    self.cooldown_generator.get_value(self.game.level)
+                )
+
+        def force_tick(self) -> None:
+            self.generate(
+                self.game.level >= Constant.EVENT_ROCKET_LEVELS[1]
+                and bool(Chance(Constant.EVENT_SUPERROCKET_CHANCE))
+            )
+            self.ticker = Ticker(
+                Constant.EVENT_ROCKET_TICK, 
+                True, 
+                self.cooldown_generator.get_value(self.game.level)
+            )
+
+        def generate(self, issuper: bool) -> None:
+            level = self.game.level + (self.game.ball.entity.velocity.y > 0)
+            for slab_level in self.game.slab_levels:
+                if slab_level.level == level and slab_level.level_info is not None:
+                    rocket_facing_left = slab_level.level_info.velocity > 0
+                    break
+            else:
+                if (
+                    not self.game.slab_levels 
+                    or (slab_level := self.game.slab_levels[-1]).level_info is None
+                ):
+                    return
+                level = slab_level.level
+                rocket_facing_left = slab_level.level_info.velocity > 0
+            height = (level - 1) * Constant.SLAB_GAP + Constant.GROUND_Y
+            if rocket_facing_left:
+                position = (
+                    GeneralConstant.DEFAULT_SCREEN_SIZE[0] + Constant.ROCKET_HALFSIZE[0], 
+                    height
+                )
+                velocity_x = -Constant.SUPER_ROCKET_SPEED if issuper else -Constant.ROCKET_SPEED
+            else:
+                position = (-Constant.ROCKET_HALFSIZE[0], height)
+                velocity_x = Constant.SUPER_ROCKET_SPEED if issuper else Constant.ROCKET_SPEED
+            self.game.rockets.append(Rocket(position, velocity_x, issuper))
+
+        @property
+        def active(self) -> bool:
+            return self.ticker.running
+        
+    class FallingBallEvent:
+        def __init__(self, game: "Game") -> None:
+            self.game = game
+            self.ticker = Ticker(
+                Constant.EVENT_FALLING_BALL_TICK, 
+                False, 
+                Constant.EVENT_FALLING_BALL_COOLDOWN
+            )
+            self.chance_generator = LinearRange(
+                Constant.EVENT_FALLING_BALL_LEVELS[0], 
+                Constant.EVENT_FALLING_BALL_LEVELS[1], 
+                Constant.EVENT_FALLING_BALL_CHANCES[0], 
+                Constant.EVENT_FALLING_BALL_CHANCES[1]
+            )
+
+        def start(self) -> None:
+            self.ticker.skip_cooldown()
+
+        def reload(self) -> None:
+            self.ticker.stop()
+
+        def tick(self) -> None:
+            if self.ticker.tick() and Chance(self.chance_generator.get_value(self.game.level)):
+                self.generate()
+                self.ticker.restart()
+                if (
+                    not self.game.rocket_event.ticker.in_cooldown 
+                    and Chance(Constant.EVENT_UNION_SPAWN_CHANCE)
+                ):
+                    self.game.rocket_event.force_tick()
+
+        def generate(self) -> None:
+            y = self.game.reference + Constant.ORIGINAL_TOP_HEIGHT
+            for i in range(1, Constant.FALLING_BALLS + 1):
+                self.game.event_balls.append(
+                    Ball(Vector(i * Constant.FALLING_BALL_SEP, y), "event")
+                )
+
+        @property
+        def active(self) -> bool:
+            return self.ticker.running
+    
+    class AchievementTracer:
+        def __init__(self, game: "Game") -> None:
+            self.game = game
+            self.achievement = Datas.achievement
+            self.current = None
+            self.max_height = None
+            self.last_bounce = None
+            self.last_collision = None
+            self.last_bounceable = None
+            self.continuous_bounce = None
+            self.long_stay = None
+            self.high_speed_rocket_height: NumberType | None = None
+
+        def record(self, bounce: bool, collided: bool) -> None:
+            self.current = status = BallStatus.record(self.game)
+            if self.max_height is None or self.max_height.position.y < status.position.y:
+                self.max_height = status
+            if bounce:
+                if (
+                    self.last_bounce is None
+                    or status.level <= self.last_bounce.level
+                ):
+                    self.continuous_bounce = status
+                self.last_bounce = status
+            if collided:
+                self.last_collision = status
+            if status.bounceable:
+                self.last_bounceable = status
+            if (
+                status.level != 1
+                and (self.long_stay is None or status.level != self.long_stay.level)
+            ):
+                self.long_stay = status
+            elif status.level == 1:
+                self.long_stay = None
+
+        def check_achievements(self) -> list[Achievement]:
+            def add(achievement: Achievement) -> None:
+                Datas.achievement |= achievement
+                achievements.append(achievement)
+            
+            achievements = []
+            if (
+                Achievement.low_onground not in Datas.achievement
+                and isinstance(self.current.ground, PhysicsSlab)
+                and self.max_height.position.y - GeneralConstant.BALL_RADIUS <= 
+                    self.current.ground.y_top + 10
+            ):
+                add(Achievement.low_onground)
+            if (
+                Achievement.continuous_bounce not in Datas.achievement
+                and self.continuous_bounce is not None
+                and self.current.level - self.continuous_bounce.level 
+                    >= DataConstant.Achievement.CONTINUOUS_BOUNCE_LEVELS
+            ):
+                add(Achievement.continuous_bounce)
+            if (
+                Achievement.long_stay not in Datas.achievement
+                and self.long_stay is not None
+                and self.current.time - self.long_stay.time >=
+                    DataConstant.Achievement.LONG_STAY_SECONDS
+            ):
+                add(Achievement.long_stay)
+            if (
+                Achievement.fast_rotation not in Datas.achievement
+                and abs(self.current.angular_frequency) >= 
+                    DataConstant.Achievement.FAST_ROTATION_FREQUENCY
+            ):
+                add(Achievement.fast_rotation)
+            if (
+                Achievement.free_fall not in Datas.achievement
+                and self.game.gameover
+                and self.last_bounceable is not None
+                and self.last_bounceable.level - self.current.level >=
+                    DataConstant.Achievement.FREE_FALL_LEVELS
+            ):
+                add(Achievement.free_fall)
+            if (
+                Achievement.bounce_high not in Datas.achievement
+                and self.current.position.y >= DataConstant.Achievement.BOUNCE_HIGH_HEIGHT
+            ):
+                add(Achievement.bounce_high)
+            if (
+                Achievement.avoid_high_speed_rocket not in Datas.achievement
+                and not self.game.gameover
+                and self.high_speed_rocket_height is not None
+                and self.current.position.y >= self.high_speed_rocket_height
+            ):
+                add(Achievement.avoid_high_speed_rocket)
+            self.high_speed_rocket_height = None
+            return achievements
+    
+    timer: Timer
     reference: NumberType
     max_height: NumberType
     gameover: bool
-    ball: PhysicsBall
-    ground: PhysicsGround
+    ball: Ball
+    ball_unbounceable: Ball
+    ground: Ground
     wall_left: PhysicsWall
     wall_right: PhysicsWall
     slab_levels: deque[SlabLevel]
-    rockets: list[PhysicsRocket]
-    particles: list[Particle]
+    event_balls: BallGroup
+    rockets: RocketGroup
+    particles: ParticleGroup
+    new_achievements: deque[Achievement]
 
     def __init__(self, level_filepath: str) -> None:
         self.__level_generator = LevelGenerator(level_filepath)
+        self.timer = Timer()
         self.reference = 0
+        self.level = 1
         self.max_height = 0
         self.gameover = False
-        self.ball = PhysicsBall(
-            (GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 0), 
-            GeneralConstant.BALL_RADIUS
-        )
-        self.ground = PhysicsGround(Constant.GROUND_Y)
+        self.ball = Ball((GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 0), "normal")
+        self.ball_unbounceable = Ball((0, 0), "unbounceable")
+        self.ball_unbounceable.entity = self.ball.entity
+        self.ground = Ground()
         self.wall_left = PhysicsWall(0, Direction.RIGHT)
         self.wall_right = PhysicsWall(GeneralConstant.DEFAULT_SCREEN_SIZE[0], Direction.LEFT)
         self.slab_levels = deque()
         while SlabLevel.GENERATE_HEIGHT <= Constant.UPPER_SLAB_BOUNDARY:
             self.slab_levels.append(SlabLevel(self.__level_generator))
-        self.rockets = []
-        self.particles = []
+        self.event_balls = BallGroup()
+        self.rockets = RocketGroup()
+        self.particles = ParticleGroup()
+        self.rocket_event = Game.RocketEvent(self)
+        self.falling_ball_event = Game.FallingBallEvent(self)
+        self.achievement_tracer = Game.AchievementTracer(self)
+        self.new_achievements = deque()
 
     def tick(self, dt: float, bounce: bool) -> None:
+        if bounce:
+            self.timer.start()
+        bottom_y = Constant.SCREEN_BOTTOM_Y + self.reference
         for slab_level in self.slab_levels:
             slab_level.tick(dt)
-        rockets = []
-        for rocket in self.rockets:
-            rocket.tick(dt)
-            for slab in self.slabs:
-                direction, length = slab.entity.get_shrink_parameter(rocket)
-                if length == 0:
-                    continue
-                if direction == Direction.LEFT:
-                    self.particles += slab.generate_particle(
-                        slab.entity.active_length_range[0] - length, 
-                        rocket.position + Vector(rocket.halfsize.x, 0), 
-                        slab.displayable.shrink_fromleft(length)
-                    )
-                elif direction == Direction.RIGHT:
-                    surface = slab.displayable.shrink_fromright(length)
-                    self.particles += slab.generate_particle(
-                        slab.entity.active_length_range[1], 
-                        rocket.position - Vector(rocket.halfsize.x, 0), 
-                        surface
-                    )
-            if not rocket.remove:
-                rockets.append(rocket)
-        self.rockets = rockets
-        particles = []
-        bottom_y = Constant.SCREEN_BOTTOM_Y + self.reference
-        for particle in self.particles:
-            particle.entity.tick(dt)
-            if not particle.check_removal(bottom_y):
-                particles.append(particle)
-        self.particles = particles
+        if (removed_super_rocket := self.rockets.tick(dt)) is not None:
+            self.achievement_tracer.high_speed_rocket_height = \
+                removed_super_rocket.entity.position.y
+        self.particles.tick(dt, bottom_y)
+        self.event_balls.tick(
+            dt, 
+            (self.ground.entity, self.wall_left, self.wall_right, self.ball.entity), 
+            tuple(self.physics_slabs), 
+            tuple(entity_converter(self.rockets)), 
+            tuple(entity_converter(self.event_balls)), 
+            particle_group=self.particles, 
+            bottom_y=bottom_y
+        )
+        for slab in self.slabs:
+            for rocket in self.rockets.data_iter:
+                slab.check_rocket_collision(rocket, self.particles)
+        if not self.gameover:
+            collided = self.ball.tick(
+                dt, 
+                bounce, 
+                (self.ground.entity, self.wall_left, self.wall_right), 
+                self.physics_slabs, 
+                entity_converter(self.rockets), 
+                entity_converter(self.event_balls), 
+                particle_group=self.particles
+            )
+            self.achievement_tracer.record(bounce, collided)
+            if self.ball.check_removal(bottom_y):
+                self.gameover = True
+                self.timer.pause()
+            self.level = get_level(self.ball.entity.position.y)
+            if self.level >= Constant.EVENT_ROCKET_LEVELS[0]:
+                if not self.rocket_event.active:
+                    self.rocket_event.start()
+                else:
+                    self.rocket_event.tick()
+            if self.level >= Constant.EVENT_FALLING_BALL_LEVELS[0]:
+                if not self.falling_ball_event.active:
+                    self.falling_ball_event.start()
+                else:
+                    self.falling_ball_event.tick()
+
+        self.new_achievements.extend(self.achievement_tracer.check_achievements())
         if self.gameover:
             return
-        
-        self.ball.tick(
-            dt,
-            bounce, 
-            self.objects
-        )
-        if self.ball.crash_on_rocket:
+        if (pos_y := self.ball.entity.position.y) + self.ball.entity.radius <= bottom_y:
             self.gameover = True
             return
-        if (pos_y := self.ball.position.y) + self.ball.radius <= bottom_y:
-            self.gameover = True
-            return
-        if pos_y > self.max_height:
+        if (pos_y := self.ball.entity.position.y) > self.max_height:
             self.max_height = pos_y
         if (reference := pos_y - Constant.TRACE_HEIGHT) > self.reference:
             self.reference = reference
-            while self.slab_levels \
-                and self.slab_levels[0].height <= reference + Constant.LOWER_SLAB_BOUNDARY:
+            while (
+                self.slab_levels
+                and self.slab_levels[0].height <= reference + Constant.LOWER_SLAB_BOUNDARY
+            ):
                 self.slab_levels.popleft()
             while SlabLevel.GENERATE_HEIGHT <= reference + Constant.UPPER_SLAB_BOUNDARY:
                 self.slab_levels.append(SlabLevel(self.__level_generator))
 
+    def display(self, center_screen: Surface, debugging: bool) -> None:
+        self.ground.display(center_screen, self.position_map)
+        for slab in self.slabs:
+            slab.display(center_screen, self.position_map)
+        self.rockets.display(center_screen, self.position_map)
+        self.event_balls.display(center_screen, self.position_map)
+        if not self.gameover:
+            if debugging and not self.ball.entity.bounceable:
+                self.ball_unbounceable.display(center_screen, self.position_map)
+            else:
+                self.ball.display(center_screen, self.position_map)
+        self.particles.display(center_screen, self.position_map)
+
     def restart(self) -> None:
         self.__level_generator.reload()
         SlabLevel.reload()
+        self.timer.stop()
         self.reference = 0
         self.max_height = 0
+        self.level = 1
         self.gameover = False
-        self.ball = PhysicsBall(
-            (GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 0), 
-            GeneralConstant.BALL_RADIUS
-        )
-        self.rockets = []
-        self.particles = []
+        self.ball = Ball((GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 0), "normal")
+        self.ball_unbounceable = Ball((0, 0), "unbounceable")
+        self.ball_unbounceable.entity = self.ball.entity
+        self.event_balls = BallGroup()
+        self.rockets = RocketGroup()
+        self.particles = ParticleGroup()
         self.slab_levels = deque()
         while SlabLevel.GENERATE_HEIGHT <= Constant.UPPER_SLAB_BOUNDARY:
             self.slab_levels.append(SlabLevel(self.__level_generator))
+        self.rocket_event.reload()
+        self.falling_ball_event.reload()
 
-    def generate_rocket(self, issuper: bool = False) -> None:
-        level = get_level(self.ball.position.y) + (self.ball.velocity.y > 0)
-        for slab_level in self.slab_levels:
-            if slab_level.level == level and slab_level.level_info is not None:
-                rocket_facing_left = slab_level.level_info.velocity > 0
-                break
-        else:
-            if not self.slab_levels or (slab_level := self.slab_levels[-1]).level_info is None:
-                return
-            level = slab_level.level
-            rocket_facing_left = slab_level.level_info.velocity > 0
-        height = (level - 1) * Constant.SLAB_GAP - GeneralConstant.BALL_RADIUS
-        if rocket_facing_left:
-            position = (
-                GeneralConstant.DEFAULT_SCREEN_SIZE[0] + Constant.ROCKET_HALFSIZE[0], 
-                height
-            )
-            velocity_x = -Constant.SUPER_ROCKET_SPEED if issuper else -Constant.ROCKET_SPEED
-        else:
-            position = (-Constant.ROCKET_HALFSIZE[0], height)
-            velocity_x = Constant.SUPER_ROCKET_SPEED if issuper else Constant.ROCKET_SPEED
-        self.rockets.append(PhysicsRocket(position, velocity_x))
+    def read_new_achievement(self) -> Achievement | None:
+        if self.new_achievements:
+            return self.new_achievements.popleft()
+        return None
         
     def position_map(self, position: Vector) -> Vector:
         return Vector(position.x, Constant.ORIGINAL_TOP_HEIGHT + self.reference - position.y)
@@ -669,131 +997,9 @@ class Game:
         for slab_level in self.slab_levels:
             for slab in slab_level:
                 yield slab
-
-    @property
-    def objects(self) -> Generator[PhysicsObject, None, None]:
-        yield self.ground
-        yield self.wall_left
-        yield self.wall_right
-        for rocket in self.rockets:
-            yield rocket
-        for slab in self.slabs:
-            yield slab.entity
-
-
-class HighScore:
-    BITLENGTH_ZERO = "aBcDeFgHiJlLm"
-    BITLENGTH_ONE = "NoPqRsTuVwXyZ"
-    BITLENGTH_END = "x"
-    BITLENGTH_RANDOM = "".join(
-        set(ascii_letters).difference(BITLENGTH_ZERO, BITLENGTH_ONE, BITLENGTH_END)
-    )
-    SCORE_ZERO = "AbCdEfGhIjKlM"
-    SCORE_ONE = "nOpQrStUvWxYz"
-    SCORE_RANDOM = "".join(set(ascii_letters).difference(SCORE_ZERO, SCORE_ONE))
-
-    @classmethod
-    def encode(cls, score: int) -> str:
-        string = ""
-        bits = score.bit_length()
-        bits_bits = bits.bit_length()
-        bit_randoms = max(
-            randint(
-                int(bits_bits * Constant.HIGHSCORE_BITRANDOM_MULTIPLIER[0]), 
-                int(bits_bits * Constant.HIGHSCORE_BITRANDOM_MULTIPLIER[1])
-            ), 
-            Constant.HIGHSCORE_BITRANDOM_MINIMUM
-        )
-        score_randoms = max(
-            randint(
-                int(bits * Constant.HIGHSCORE_SCORERANDOM_MULTIPLIER[0]), 
-                int(bits * Constant.HIGHSCORE_SCORERANDOM_MULTIPLIER[1])
-            ), 
-            Constant.HIGHSCORE_SCORERANDOM_MINIMUM
-        )
-        bit_totals = bits_bits + bit_randoms
-        score_totals = bits + score_randoms
-
-        while bit_totals:
-            if randint(1, bit_totals) <= bit_randoms:
-                string += choice(cls.BITLENGTH_RANDOM)
-                bit_randoms -= 1
-            elif bits % 2 == 0:
-                string += choice(cls.BITLENGTH_ZERO)
-                bits //= 2
-            else:
-                string += choice(cls.BITLENGTH_ONE)
-                bits //= 2
-            bit_totals -= 1
-        
-        string += cls.BITLENGTH_END
-
-        while score_totals:
-            if randint(1, score_totals) <= score_randoms:
-                string += choice(cls.SCORE_RANDOM)
-                score_randoms -= 1
-            elif score % 2 == 0:
-                string += choice(cls.SCORE_ZERO)
-                score //= 2
-            else:
-                string += choice(cls.SCORE_ONE)
-                score //= 2
-            score_totals -= 1
-        
-        return string
-
-    @classmethod
-    def decode(cls, string: str) -> int:
-        default = 0
-        bits = 0
-        bitpos = 0
-        for i, c in enumerate(string):
-            if c in cls.BITLENGTH_ZERO:
-                bitpos += 1
-            elif c in cls.BITLENGTH_ONE:
-                bits += 1 << bitpos
-                bitpos += 1
-            elif c == cls.BITLENGTH_END:
-                break
-        else:
-            return default
-        bitpos = 0
-        score = 0
-        for c in string[i + 1:]:
-            if c in cls.SCORE_ZERO:
-                bitpos += 1
-                bits -= 1
-            elif c in cls.SCORE_ONE:
-                score += 1 << bitpos
-                bitpos += 1
-                bits -= 1
-        if bits != 0:
-            return default
-        return score
     
-    @classmethod
-    def load(cls) -> int:
-        default = 0
-        try:
-            with open(Path.HIGHSCORE, "r") as file:
-                raw_score = jsonload(file)
-            match raw_score:
-                case {"highscore": str(s)}:
-                    return cls.decode(s)
-                case _:
-                    return default
-        except FileNotFoundError:
-            return default
-        except BaseException as e:
-            Log.log(e)
-            return default
-        
-    @classmethod
-    def save(cls, score: int) -> None:
-        def thread_save() -> None:
-            try:
-                with open(Path.HIGHSCORE, "w") as file:
-                    jsondump({"highscore": cls.encode(score)}, file, indent=4)
-            except BaseException as e:
-                Log.log(e)
-        Thread(target=thread_save).start()
+    @property
+    def physics_slabs(self) -> Generator[PhysicsSlab, None, None]:
+        for slab_level in self.slab_levels:
+            for slab in slab_level:
+                yield slab.entity

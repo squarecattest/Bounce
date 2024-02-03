@@ -1,5 +1,5 @@
 from vector import Vector, NumberType, LengthType, VectorType, SizeType
-from constants import GeneralConstant, PhysicsConstant as Constant, GameConstant
+from constants import GeneralConstant, PhysicsConstant as Constant
 from utils import Direction
 from enum import Enum, auto
 from abc import ABC, abstractmethod
@@ -111,8 +111,6 @@ def _wall_reflect_velocity(distance: NumberType) -> NumberType:
     distance: :class:`NumberType`
         The distance to the wall surface.
     '''
-    if distance < Constant.WALL_REFLECT_ALLOWED_DISTANCE:
-        return 0
     return Constant.WALL_REFLECT_VELOCITY_MULTIPLIER * (distance ** 2)
 
 
@@ -138,7 +136,7 @@ class PhysicsObject(ABC):
         pass
     
     @abstractmethod
-    def ckeck_onground(self, ball: "PhysicsBall") -> bool:
+    def check_onground(self, ball: "PhysicsBall") -> bool:
         '''
         Check if the on-ground ball is still on this object. Notice that a bounce will 
         automatically remove the on-ground property, so this method only need to check about 
@@ -194,7 +192,7 @@ class PhysicsGround(PhysicsObject):
             return Vector.unit_upward
         return None
 
-    def ckeck_onground(self, ball: "PhysicsBall") -> bool:
+    def check_onground(self, ball: "PhysicsBall") -> bool:
         return ball.velocity.y == 0
     
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
@@ -251,7 +249,7 @@ class PhysicsWall(PhysicsObject):
             return Vector.unit_leftward
         return None
     
-    def ckeck_onground(self, ball: "PhysicsBall") -> bool:
+    def check_onground(self, ball: "PhysicsBall") -> bool:
         return False
     
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
@@ -347,9 +345,14 @@ class PhysicsSlab(PhysicsObject):
         # Not colliding
         return None
     
-    def ckeck_onground(self, ball: "PhysicsBall") -> bool:
+    def check_onground(self, ball: "PhysicsBall") -> bool:
         x_range = self.x_range
-        return self.__v.y == 0 and x_range[0] <= ball.position.x <= x_range[1]
+        #return ball.velocity.y == 0 and x_range[0] <= ball.position.x <= x_range[1]
+        if ball.velocity.y <= 0 and x_range[0] <= ball.position.x <= x_range[1]:
+            ball.position.y = self.y_top + ball.radius
+            ball.velocity.y = 0
+            return True
+        return False
     
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
         return Vector.unit_upward
@@ -517,7 +520,7 @@ class PhysicsRocket(PhysicsObject):
             return True
         
         # Left side
-        if abs_ref_y <= 8 and 0 <= reference.x + ball.radius + self.__halfsize <= 10:
+        if abs_ref_y <= 8 and 0 <= reference.x + ball.radius + self.__halfsize.x <= 10:
             return True
         
         # Left slopes
@@ -565,7 +568,7 @@ class PhysicsRocket(PhysicsObject):
             or self.__pos.x - self.__halfsize[0] >= GeneralConstant.DEFAULT_SCREEN_SIZE[0]
         )
     
-    def ckeck_onground(self, ball: "PhysicsBall") -> bool:
+    def check_onground(self, ball: "PhysicsBall") -> bool:
         return False
     
     def get_normal_vector(self, ball: "PhysicsBall") -> NoReturn:
@@ -578,6 +581,13 @@ class PhysicsRocket(PhysicsObject):
         changed by calling vector setters.
         '''
         return self.__pos
+    
+    @property
+    def halfsize(self) -> Vector:
+        '''
+        (Read-only) Half of the size of the rocket.
+        '''
+        return self.__halfsize
     
     @property
     def x_left(self) -> NumberType:
@@ -619,11 +629,12 @@ class PhysicsBall(PhysicsObject):
     __w: NumberType # angular velocity
     __radius: LengthType
     __onground: bool
-    __ground: PhysicsObject
+    __ground: PhysicsObject | None
     __bounceable: bool
     __path_length: LengthType
+    __collided: bool
     __collision_exceptions: list[PhysicsObject]
-    __gameover: bool
+    __crash_on_rocket: bool
     __debug_msgs: list[str]
 
     def __init__(self, position: VectorType, radius: LengthType) -> None:
@@ -644,11 +655,12 @@ class PhysicsBall(PhysicsObject):
         self.__ground = None
         self.__bounceable = False
         self.__path_length = 0
-        self.__collision_exceptions = []
-        self.__gameover = False
+        self.__collided = False
+        self.__collision_exceptions = [self]
+        self.__crash_on_rocket = False
         self.__debug_msgs = []
 
-    def tick(self, dt: float, objs: Iterable[PhysicsObject], bounce: bool) -> None:
+    def tick(self, dt: float, bounce: bool, *objs: Iterable[PhysicsObject]) -> bool:
         '''
         Apply all the interactions.
 
@@ -660,6 +672,11 @@ class PhysicsBall(PhysicsObject):
             All the other interactable objects.
         bounce: :class:`bool`
             Whether the player bounced.
+
+        Returns
+        -------
+        :class:`bool`
+            Whether the ball collided.
         '''
         self.__pos += self.__v * dt
         self.__angle += self.__w * dt
@@ -677,9 +694,14 @@ class PhysicsBall(PhysicsObject):
         if bounce:
             self.bounce()
             self.__debug_msgs.append("<bounce>")
-        for obj in objs:
-            self.handle_collision(dt, obj)
-        self.__collision_exceptions.clear()
+        for iterable in objs:
+            for obj in iterable:
+                self.handle_collision(dt, obj)
+        self.__collision_exceptions = [self]
+        if self.__collided:
+            self.__collided = False
+            return True
+        return False
 
     def bounce(self) -> None:
         '''
@@ -712,7 +734,7 @@ class PhysicsBall(PhysicsObject):
             if (collision_vector := obj.check_collision(self)) is None:
                 return
             elif collision_vector is True:
-                self.__gameover = True
+                self.__crash_on_rocket = True
                 self.__debug_msgs.append("<crash: Rocket>")
                 return
         elif (collision_vector := obj.check_collision(self)) is None:
@@ -728,6 +750,18 @@ class PhysicsBall(PhysicsObject):
                 collision_vector, 
                 multiplier=Constant.SLIDING_MULTIPLIER_ONCOLLISION
             )
+            if isinstance(obj, PhysicsBall):
+                # Added this to deal with contacted balls problem.
+                # (which is due to friction -> not on ground -> gravity force)
+                # However, this does not seem to be an elegent solution.
+                obj.handle_friction(
+                    dt, 
+                    self.velocity, 
+                    -collision_vector, 
+                    multiplier=Constant.SLIDING_MULTIPLIER_ONCOLLISION
+                )
+                self.update_onground()
+                obj.update_onground()
         else:
             self.remove_wall_stuck(obj)
         if isinstance(obj, PhysicsGround) and self.__v * Vector.unit_downward > 0:
@@ -766,7 +800,13 @@ class PhysicsBall(PhysicsObject):
             )
         )
         self.__v = v1_perp + v1_para
+        if self.__v.y >= 0 and normal_vector * Vector.unit_upward >= 0:
+            self.set_bounceability(True)
+        if ball.__v.y >= 0 and -normal_vector * Vector.unit_upward >= 0:
+            ball.set_bounceability(True)
         ball.__v = v2_perp + v2_para
+        self.__collided = True
+        ball.__collided = True
         self.__debug_msgs.append("<collide: Ball>")
         ball.__debug_msgs.append("<collide: Ball>")
 
@@ -797,6 +837,7 @@ class PhysicsBall(PhysicsObject):
             self.set_onground(True, ground=obj)
         elif self.__v.y >= 0 and normal_vector * Vector.unit_upward > 0:
             self.set_bounceability(True)
+        self.__collided = True
         self.__debug_msgs.append(
             f"<collide: {type(obj).__name__.removeprefix("Physics")}>"
         )
@@ -812,6 +853,13 @@ class PhysicsBall(PhysicsObject):
         wall: :class:`PhysicsWall`
             The wall which the ball get stuck in.
         '''
+        distance = (
+            wall.x_side - self.__pos.x + self.__radius
+            if wall.facing == Direction.RIGHT
+            else self.__pos.x + self.__radius - wall.x_side
+        )
+        if abs(distance) <= Constant.WALL_REFLECT_ALLOWED_DISTANCE:
+            return
         self.__debug_msgs.append("<stuck removal: Wall>")
         if self.__onground:
             if wall.facing == Direction.RIGHT:
@@ -828,7 +876,7 @@ class PhysicsBall(PhysicsObject):
         elif wall.facing == Direction.LEFT:
             self.__v.x = min(
                 self.__v.x,
-                -_wall_reflect_velocity(self.__pos.x - self.__radius - wall.x_side)
+                -_wall_reflect_velocity(self.__pos.x + self.__radius - wall.x_side)
             )
 
     def remove_ground_stuck(self, ground: PhysicsGround) -> None:
@@ -909,7 +957,7 @@ class PhysicsBall(PhysicsObject):
             return vec
         return None
     
-    def ckeck_onground(self, ball: "PhysicsBall") -> bool:
+    def check_onground(self, ball: "PhysicsBall") -> bool:
         return False
     
     def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
@@ -956,7 +1004,7 @@ class PhysicsBall(PhysicsObject):
         '''
         if not self.__onground:
             return
-        if not self.__ground.ckeck_onground(self):
+        if not self.__ground.check_onground(self):
             self.set_onground(False)
         
     def update_bounceability(self, traveled_distance: LengthType) -> None:
@@ -1012,6 +1060,10 @@ class PhysicsBall(PhysicsObject):
         return self.__w
     
     @property
+    def ground(self) -> PhysicsObject | None:
+        return self.__ground
+    
+    @property
     def ground_text(self) -> str:
         '''
         (Read-only) The text of the ground of the ball.
@@ -1035,13 +1087,13 @@ class PhysicsBall(PhysicsObject):
         return self.__radius
     
     @property
-    def gameover(self) -> bool:
+    def crash_on_rocket(self) -> bool:
         '''
         To be documented
         '''
-        gameover = self.__gameover
-        self.__gameover = False
-        return gameover
+        crash_on_rocket = self.__crash_on_rocket
+        self.__crash_on_rocket = False
+        return crash_on_rocket
     
     @property
     def debug_msgs(self) -> tuple[str]:

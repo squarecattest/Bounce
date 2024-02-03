@@ -1,8 +1,7 @@
 from pygame import Surface, Color as pgColor
 from pygame.font import Font
 from pygame.transform import rotate
-from modules.vector import Vector
-from vector import Vector, NumberType, SizeType
+from vector import Vector, NumberType
 from language import Language, TranslateName, Translatable
 from resources import Color
 from enum import Enum, Flag, auto
@@ -411,7 +410,12 @@ class DisplayableText(StaticDisplayable):
         super().__init__(self.surface, offset, alignment)
 
     def __update_surface(self) -> None:
-        self.surface = self.__font.render(self.__text, False, self.__color, self.__background)
+        self.surface = self.__font.render(
+            self.__text, 
+            False, 
+            self.__color, 
+            self.__background
+        ).convert_alpha()
         self.surface.set_alpha(self.__alpha)
 
     @property
@@ -641,7 +645,7 @@ class DisplayableSlab(Displayable):
             return self.source_surface.subsurface(
                 (self.length_range[0], 0), 
                 (self.length_range[1] - self.length_range[0], self.width)
-            )
+            ).convert()
     
     def __init__(
         self, 

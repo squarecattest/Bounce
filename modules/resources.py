@@ -5,6 +5,8 @@ pygame.init()
 MAIN_SCREEN = pygame.display.set_mode(size = Constant.DEFAULT_SCREEN_SIZE, flags=pygame.RESIZABLE)
 CENTER_SCREEN = pygame.Surface(Constant.DEFAULT_SCREEN_SIZE)
 HIDDEN_SCREEN = pygame.Surface(Constant.DEFAULT_SCREEN_SIZE)
+pygame.display.set_caption("Bounce!")
+pygame.display.set_icon(pygame.image.load(".\\textures\\icon.png").convert_alpha())
 
 class Font:
     class Game:
@@ -18,15 +20,27 @@ class Font:
         SCOREBOARD_VALUE = pygame.font.Font(".\\fonts\\zpix.ttf", 32)
         SCOREBOARD_VALUE.set_bold(True)
         SCOREBOARD_VALUE.set_italic(True)
+        PAUSE_TITLE = pygame.font.Font(".\\fonts\\zpix.ttf", 32)
+        PAUSE_TEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 18)
+        ACHIEVEMENT_FRAME_HEADER = pygame.font.Font(".\\fonts\\zpix.ttf", 18)
+        ACHIEVEMENT_FRAME_NAME = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
         LEVEL_TEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 72)
         LEVEL_TEXT.set_bold(True)
         LEVEL_TEXT.set_italic(True)
         RESTART_TEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 18)
+        NEW_RECORD_TEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 32)
 
     class Option:
         TITLE = pygame.font.Font(".\\fonts\\zpix.ttf", 48)
         TEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
         BARTEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
+        BACKTEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
+
+    class Achievement:
+        TITLE = pygame.font.Font(".\\fonts\\zpix.ttf", 48)
+        NAME = pygame.font.Font(".\\fonts\\zpix.ttf", 18)
+        NAME.set_italic(True)
+        DESCRIPTION = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
         BACKTEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
 
     class Control:
@@ -35,11 +49,20 @@ class Font:
         BACKTEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
 
 class Texture:
+    ICON = pygame.image.load(".\\textures\\icon.png").convert_alpha()
     BACKGROUND = pygame.image.load(".\\textures\\background-80x48.png").convert()
-    BALL = pygame.image.load(".\\textures\\ball-40px.png").convert_alpha() #
+    LOGO = pygame.image.load(".\\textures\\logo-648x174.png").convert_alpha()
     BALL_FRAME = pygame.image.load(".\\textures\\ball_frame-40px.png").convert_alpha()
+    BALL_FRAME_EVENT = pygame.image.load(
+        ".\\textures\\ball_frame_event-40px.png"
+    ).convert_alpha()
+    BALL_FRAME_UNBOUNCEABLE = pygame.image.load(
+        ".\\textures\\ball_frame_unbounceable-40px.png"
+    ).convert_alpha()
     BALL_SURFACE = pygame.image.load(".\\textures\\ball_surface-40px.png").convert_alpha()
-    SLAB = pygame.image.load(".\\textures\\brick-150x10.png").convert()
+    BALL_SURFACE_EVENT = pygame.image.load(
+        ".\\textures\\ball_surface_event-40px.png"
+    ).convert_alpha()
     SLAB_FRAME = pygame.image.load(".\\textures\\slab_frame-10x10.png").convert()
     SLAB_SURFACE = pygame.image.load(".\\textures\\slab_surface-10x10.png").convert()
     ROCKET_FACING_LEFT = pygame.image.load(
@@ -50,6 +73,19 @@ class Texture:
     ).convert_alpha()
     GROUND = pygame.image.load(".\\textures\\ground-62x28.png").convert()
     SCOREBOARD = pygame.image.load(".\\textures\\scoreboard-10x60.png").convert()
+    PAUSE_FRAME = pygame.image.load(".\\textures\\pause_page-420x180.png").convert_alpha()
+    ACHIEVEMENT_FRAME = pygame.image.load(
+        ".\\textures\\achievement_frame-280x60.png"
+    ).convert_alpha() #
+    ACHIEVEMENT_FRAME_LEFT = pygame.image.load(
+        ".\\textures\\achievement_frame_left-12x60.png"
+    ).convert_alpha()
+    ACHIEVEMENT_FRAME_RIGHT = pygame.image.load(
+        ".\\textures\\achievement_frame_right-12x60.png"
+    ).convert_alpha()
+    ACHIEVEMENT_FRAME_CENTER = pygame.image.load(
+        ".\\textures\\achievement_frame_center-100x60.png"
+    ).convert()
     SELECTION_MENU_ARROW = pygame.image.load(
         ".\\textures\\selection_menu_arrow-16x16.png"
     ).convert_alpha()
@@ -59,6 +95,12 @@ class Texture:
     ).convert_alpha()
     OPTION_VOLUME_POINT_SURFACE = pygame.image.load(
         ".\\textures\\volume_point_surface-48px.png"
+    ).convert_alpha()
+    OPTION_VOLUME_POINT_EVENT_FRAME = pygame.image.load(
+        ".\\textures\\volume_point_event_frame-48px.png"
+    ).convert_alpha()
+    OPTION_VOLUME_POINT_EVENT_SURFACE = pygame.image.load(
+        ".\\textures\\volume_point_event_surface-48px.png"
     ).convert_alpha()
     OPTION_SELECTION_BAR = pygame.image.load(
         ".\\textures\\option_selection_bar-200x36.png"
@@ -77,6 +119,18 @@ class Texture:
     OPTION_SELECTION_RIGHT_ARROW_PRESSED = pygame.image.load(
         ".\\textures\\option_selection_right_arrow_pressed-20x36.png"
     ).convert_alpha()
+    ACHIEVEMENT_NAME_LEFT = pygame.image.load(
+        ".\\textures\\achievement_title_left-12x24.png"
+    ).convert_alpha()
+    ACHIEVEMENT_NAME_RIGHT = pygame.image.load(
+        ".\\textures\\achievement_title_right-12x24.png"
+    ).convert_alpha()
+    ACHIEVEMENT_NAME_FILL = pygame.image.load(
+        ".\\textures\\achievement_title_fill-1x24.png"
+    ).convert_alpha()
+    ACHIEVEMENT_DESCRIPTION = pygame.image.load(
+        ".\\textures\\achievement_bar-720x36.png"
+    ).convert()
     CONTROL_KEY_SPACE = pygame.image.load(".\\textures\\control_key_space.png").convert_alpha()
     CONTROL_KEY_ESC = pygame.image.load(".\\textures\\control_key_escape.png").convert_alpha()
     CONTROL_KEY_D = pygame.image.load(".\\textures\\control_key_D.png").convert_alpha()
@@ -84,7 +138,7 @@ class Texture:
 class Color:
     BLACK = (0, 0, 0)
     WHITE = (255, 255, 255)
-    TRANSPARENT = (0, 0, 0, 0)
+    TRANSPARENT_COLORKEY = (255, 255, 254)
     class Game:
         ROCKET_TRANSPARENT = (255, 255, 255)
         START_TEXT = (255, 255, 255)
@@ -95,11 +149,17 @@ class Color:
         DEBUG_BACKGROUND = (89, 89, 89)
         SCOREBOARD_TITLE = (200, 200, 200)
         SCOREBOARD_VALUE = (200, 200, 200)
+        ACHIEVEMENT_FRAME = (255, 255, 255)
         LEVEL_TEXT = (230, 230, 230)
         LEVEL_SHADOW = (200, 200, 200)
+        NEW_RECORD_TEXT = (255, 255, 255)
+        NEW_RECORD_BACKGROUND = (80, 80, 80)
         RESTART_TEXT = (255, 255, 255)
         RESTART_BACKGROUND = (120, 120, 120)
         RESTART_COLORKEY = (255, 255, 255)
+        PAUSE_TEXT = (255, 255, 255)
+        PAUSE_TEXT_SELECTING = (160, 160, 160)
+        PAUSE_TEXT_PRESSED = (120, 120, 120)
 
     class Option:
         TITLE = (255, 255, 255)
@@ -107,6 +167,15 @@ class Color:
         TEXT_SELECTING = (160, 160, 160)
         TEXT_PRESSED = (120, 120, 120)
         BARTEXT = (200, 200, 200)
+
+    class Achievement:
+        TITLE = BACK_TEXT = (255, 255, 255)
+        TEXT = (200, 200, 200)
+        TEXT_SELECTING = (160, 160, 160)
+        TEXT_PRESSED = (120, 120, 120)
+        SLIDER_NORMAL = (193, 193, 193)
+        SLIDER_SELECTING = (168, 168, 168)
+        SLIDER_PRESSED = (120, 120, 120)
 
     class Control:
         TITLE = (255, 255, 255)
@@ -118,6 +187,7 @@ class Color:
 class Path:
     LEVEL = ".\\level.json"
     SETTING = ".\\setting.json"
+    DATAS = ".\\datas.json"
     HIGHSCORE = ".\\highscore.json"
     ERRORLOG = ".\\errorlog.txt"
     class Language:

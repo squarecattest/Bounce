@@ -185,23 +185,43 @@ class Chance:
 
     def __bool__(self) -> bool:
         return random() < self.chance
+    
+
+class LinearRange:
+    def __init__(
+        self, 
+        range_left: int, 
+        range_right: int, 
+        value_left: float, 
+        value_right: float
+    ) -> None:
+        self.__range_left = range_left
+        self.__range_right = range_right
+        self.__value_left = value_left
+        self.__value_right = value_right
+        self.__unit_value = (value_right - value_left) / (range_right - range_left)
+
+    def get_value(self, position: int) -> float:
+        if position >= self.__range_right:
+            return self.__value_right
+        if self.__range_left <= position:
+            return self.__value_left + self.__unit_value * (position - self.__range_left)
+        return self.__value_left
 
 
 class FPSCounter:
     def __init__(self, counts: int, start: bool = True) -> None:
         self.__counter = deque(maxlen=counts)
-        self.__timer = Timer(start=start)
         self.__counts = counts
 
-    def tick(self) -> None:
-        t = self.__timer.read(restart=True)
+    def append(self, milliseconds: int) -> None:
         if not self.__counter:
-            self.__counter.extend((t, ) * self.__counts)
+            self.__counter.extend((milliseconds, ) * self.__counts)
         else:
-            self.__counter.append(t)
+            self.__counter.append(milliseconds)
 
     def read(self) -> int:
-        return int(self.__counts / sum(self.__counter))
+        return 1000 * self.__counts // sum(self.__counter)
     
 def time_string(second: float) -> str:
     return f"{int(second // 60):02d}:{int(second % 60):02d}"
