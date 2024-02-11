@@ -2,7 +2,7 @@ import pygame
 from sys import exit
 from modules.utils import FPSCounter
 from modules.resources import MAIN_SCREEN, CENTER_SCREEN, HIDDEN_SCREEN
-from modules.errorlog import Log
+from modules.errorlog import log
 from modules.display import CenterScreenDisplay
 from modules.interface import (
     save, 
@@ -82,7 +82,7 @@ while True:
         raise
     except BaseException as e:
         try:
-            Log.log(e)
+            log(e)
         except:
             quit()
             raise
