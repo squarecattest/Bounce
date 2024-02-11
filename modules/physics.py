@@ -1,3 +1,4 @@
+from __future__ import annotations
 from vector import Vector, NumberType, LengthType, VectorType, SizeType
 from constants import GeneralConstant, PhysicsConstant as Constant
 from utils import Direction
@@ -119,7 +120,7 @@ class PhysicsObject(ABC):
     The meta class representing physical interaction of an object.
     '''
     @abstractmethod
-    def check_collision(self, ball: "PhysicsBall") -> Vector | None:
+    def check_collision(self, ball: PhysicsBall) -> Vector | None:
         '''
         Check if colliding with the ball.
 
@@ -136,7 +137,7 @@ class PhysicsObject(ABC):
         pass
     
     @abstractmethod
-    def check_onground(self, ball: "PhysicsBall") -> bool:
+    def check_onground(self, ball: PhysicsBall) -> bool:
         '''
         Check if the on-ground ball is still on this object. Notice that a bounce will 
         automatically remove the on-ground property, so this method only need to check about 
@@ -150,7 +151,7 @@ class PhysicsObject(ABC):
         pass
     
     @abstractmethod
-    def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
+    def get_normal_vector(self, ball: PhysicsBall) -> Vector:
         '''
         Get the normal vector of the contact point.
 
@@ -187,15 +188,15 @@ class PhysicsGround(PhysicsObject):
         '''
         self.__y_top = y_top
 
-    def check_collision(self, ball: "PhysicsBall") -> Vector | None:
+    def check_collision(self, ball: PhysicsBall) -> Vector | None:
         if ball.position.y - ball.radius <= self.__y_top:
             return Vector.unit_upward
         return None
 
-    def check_onground(self, ball: "PhysicsBall") -> bool:
+    def check_onground(self, ball: PhysicsBall) -> bool:
         return ball.velocity.y == 0
     
-    def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
+    def get_normal_vector(self, ball: PhysicsBall) -> Vector:
         return Vector.unit_upward
 
     @property
@@ -240,7 +241,7 @@ class PhysicsWall(PhysicsObject):
         self.__x_side = x_side
         self.__facing = facing
 
-    def check_collision(self, ball: "PhysicsBall") -> Vector | None:
+    def check_collision(self, ball: PhysicsBall) -> Vector | None:
         if self.__facing == Direction.RIGHT \
             and ball.position.x - ball.radius <= self.__x_side:
             return Vector.unit_rightward
@@ -249,10 +250,10 @@ class PhysicsWall(PhysicsObject):
             return Vector.unit_leftward
         return None
     
-    def check_onground(self, ball: "PhysicsBall") -> bool:
+    def check_onground(self, ball: PhysicsBall) -> bool:
         return False
     
-    def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
+    def get_normal_vector(self, ball: PhysicsBall) -> Vector:
         if self.__facing == Direction.RIGHT:
             return Vector.unit_rightward
         if self.__facing == Direction.LEFT:
@@ -312,7 +313,7 @@ class PhysicsSlab(PhysicsObject):
         '''
         self.__pos += self.__v * dt
 
-    def check_collision(self, ball: "PhysicsBall") -> Vector | None:
+    def check_collision(self, ball: PhysicsBall) -> Vector | None:
         # Early exclusion
         if abs(ball.position.y - self.__pos.y) > ball.radius + self.__size[1] // 2:
             return None
@@ -345,7 +346,7 @@ class PhysicsSlab(PhysicsObject):
         # Not colliding
         return None
     
-    def check_onground(self, ball: "PhysicsBall") -> bool:
+    def check_onground(self, ball: PhysicsBall) -> bool:
         x_range = self.x_range
         #return ball.velocity.y == 0 and x_range[0] <= ball.position.x <= x_range[1]
         if ball.velocity.y <= 0 and x_range[0] <= ball.position.x <= x_range[1]:
@@ -354,10 +355,10 @@ class PhysicsSlab(PhysicsObject):
             return True
         return False
     
-    def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
+    def get_normal_vector(self, ball: PhysicsBall) -> Vector:
         return Vector.unit_upward
     
-    def check_rocket_collision(self, rocket: "PhysicsRocket") -> bool:
+    def check_rocket_collision(self, rocket: PhysicsRocket) -> bool:
         if self.__active_length_range[0] == self.__active_length_range[1]:
             return False
         if self.position.y != rocket.position.y:
@@ -366,7 +367,7 @@ class PhysicsSlab(PhysicsObject):
             return rocket.x_left <= self.x_range[1]
         return rocket.x_right >= self.x_range[0]
     
-    def get_shrink_parameter(self, rocket: "PhysicsRocket") -> tuple[Direction, int]:
+    def get_shrink_parameter(self, rocket: PhysicsRocket) -> tuple[Direction, int]:
         if not self.check_rocket_collision(rocket):
             return Direction.NONE, 0
         shrink_total_length = min(Constant.UNIT_SHRINK_LENGTH, self.active_length)
@@ -473,7 +474,7 @@ class PhysicsRocket(PhysicsObject):
         '''
         self.__pos += self.__v * dt
 
-    def check_collision(self, ball: "PhysicsBall") -> Vector | Literal[True] | None:
+    def check_collision(self, ball: PhysicsBall) -> Vector | Literal[True] | None:
         '''
         To be documented
         '''
@@ -568,10 +569,10 @@ class PhysicsRocket(PhysicsObject):
             or self.__pos.x - self.__halfsize[0] >= GeneralConstant.DEFAULT_SCREEN_SIZE[0]
         )
     
-    def check_onground(self, ball: "PhysicsBall") -> bool:
+    def check_onground(self, ball: PhysicsBall) -> bool:
         return False
     
-    def get_normal_vector(self, ball: "PhysicsBall") -> NoReturn:
+    def get_normal_vector(self, ball: PhysicsBall) -> NoReturn:
         raise NotImplementedError
 
     @property
@@ -767,7 +768,7 @@ class PhysicsBall(PhysicsObject):
         if isinstance(obj, PhysicsGround) and self.__v * Vector.unit_downward > 0:
             self.remove_ground_stuck(obj)
 
-    def collide_with_ball(self, ball: "PhysicsBall", normal_vector: Vector) -> None:
+    def collide_with_ball(self, ball: PhysicsBall, normal_vector: Vector) -> None:
         '''
         Apply the collision force to the ball for a ball-to-ball collision.
         
@@ -952,15 +953,15 @@ class PhysicsBall(PhysicsObject):
         self.__v = obj_velocity - (v_rel_perp + v_rel_para)
         self.__w = v_rel_para.magnitude * _sign(v_rel_para * tangent_vector) / self.__radius
     
-    def check_collision(self, ball: "PhysicsBall") -> Vector | None:
+    def check_collision(self, ball: PhysicsBall) -> Vector | None:
         if (vec := ball.__pos - self.__pos).magnitude <= self.__radius + ball.__radius:
             return vec
         return None
     
-    def check_onground(self, ball: "PhysicsBall") -> bool:
+    def check_onground(self, ball: PhysicsBall) -> bool:
         return False
     
-    def get_normal_vector(self, ball: "PhysicsBall") -> Vector:
+    def get_normal_vector(self, ball: PhysicsBall) -> Vector:
         return ball.__pos - self.__pos
     
     def set_onground(

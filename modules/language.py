@@ -1,3 +1,4 @@
+from __future__ import annotations
 from json import load as jsonload
 from enum import IntEnum, StrEnum, auto
 from resources import Path
@@ -7,12 +8,12 @@ class Language(IntEnum):
     Japanese = auto()
     Chinese = auto()
 
-    def __lshift__(self, __v: int) -> "Language":
+    def __lshift__(self, __v: int) -> Language:
         if (i := self.value - __v) <= 0:
             return Language(1)
         return Language(i)
     
-    def __rshift__(self, __v: int) -> "Language":
+    def __rshift__(self, __v: int) -> Language:
         if (i := self.value + __v) > (length := len(Language)):
             return Language(length)
         return Language(i)
