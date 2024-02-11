@@ -1,8 +1,9 @@
+from __future__ import annotations
 from collections import deque
 from time import time
 from random import random
 from enum import Enum, auto
-from typing import Iterable, Generator
+from typing import Iterable, Generator, Callable, NoReturn
 
 class Direction(Enum):
     NONE = auto()
@@ -10,11 +11,29 @@ class Direction(Enum):
     RIGHT = auto()
 
 
+class classproperty[T, R]:
+    fget: Callable[[type[T]], R] | None
+
+    def __new__(cls, *args, **kwargs) -> classproperty[T, R]:
+        obj = object.__new__(cls)
+        obj.__init__(*args, **kwargs)
+        return obj
+    
+    def __init__(self, fget: Callable[[type[T]], R] | None) -> None:
+        self.fget = fget
+        
+    def __get__(self, __instance: T, __owner: type[T] | None = None) -> R:
+        return self.fget(__owner)
+    
+    def __set__(self, __instance: T, __value: R) -> NoReturn:
+        raise AttributeError("classproperty has no setter")
+
+
 class LinkedList[T]:
     class Node[S]:
-        __prev: "LinkedList.Node[S] | None"
-        __next: "LinkedList.Node[S] | None"
-        def __init__(self, data: S, prev: "LinkedList.Node[S] | None") -> None:
+        __prev: LinkedList.Node[S] | None
+        __next: LinkedList.Node[S] | None
+        def __init__(self, data: S, prev: LinkedList.Node[S] | None) -> None:
             self.__data = data
             self.__prev = prev
             self.__next = None
@@ -32,11 +51,11 @@ class LinkedList[T]:
             return self.__data
         
         @property
-        def prev(self) -> "LinkedList.Node[S] | None":
+        def prev(self) -> LinkedList.Node[S] | None:
             return self.__prev
         
         @property
-        def next(self) -> "LinkedList.Node[S] | None":
+        def next(self) -> LinkedList.Node[S] | None:
             return self.__next
 
     __head: Node[T] | None
