@@ -1,3 +1,5 @@
+from __future__ import annotations
+from utils import classproperty
 from collections.abc import Iterable, Generator
 from typing import overload, Literal, Union
 from math import isfinite
@@ -77,7 +79,7 @@ class Vector:
         raise TypeError(f"Expected 1 or 2 arguments, got {length}")
     
     @classmethod
-    def __direct_new(cls, __x: NumberType, __y: NumberType) -> "Vector":
+    def __direct_new(cls, __x: NumberType, __y: NumberType) -> Vector:
         '''
         Create a new vector without type checking.
         '''
@@ -94,25 +96,25 @@ class Vector:
             return NotImplemented
         return self.__x == __v[0] and self.__y == __v[1]
         
-    def __neg__(self) -> "Vector":
+    def __neg__(self) -> Vector:
         return Vector.__direct_new(-self.__x, -self.__y)
 
-    def __add__(self, __v: "Vector") -> "Vector":
+    def __add__(self, __v: Vector) -> Vector:
         if not isinstance(__v, Vector):
             return NotImplemented
         return Vector.__direct_new(self.__x + __v.__x, self.__y + __v.__y)
 
-    def __sub__(self, __v: "Vector") -> "Vector":
+    def __sub__(self, __v: Vector) -> Vector:
         if not isinstance(__v, Vector):
             return NotImplemented
         return Vector.__direct_new(self.__x - __v.__x, self.__y - __v.__y)
 
     @overload
-    def __mul__(self, __c: NumberType) -> "Vector": ...
+    def __mul__(self, __c: NumberType) -> Vector: ...
     @overload
-    def __mul__(self, __v: "Vector") -> NumberType: ...
+    def __mul__(self, __v: Vector) -> NumberType: ...
 
-    def __mul__(self, arg: "NumberType | Vector") -> "Vector | NumberType":
+    def __mul__(self, arg: NumberType | Vector) -> Vector | NumberType:
         '''
         Operate the scalar multiplication if the argument is a `NumberType`.
 
@@ -124,24 +126,24 @@ class Vector:
             return self.__x * arg.x + self.__y * arg.y
         return NotImplemented
 
-    def __rmul__(self, __c: NumberType) -> "Vector":
+    def __rmul__(self, __c: NumberType) -> Vector:
         if not _isNumber(__c):
             return NotImplemented
         return Vector.__direct_new(__c * self.__x, __c * self.__y)
     
-    def __imul__(self, __c: NumberType) -> "Vector":
+    def __imul__(self, __c: NumberType) -> Vector:
         if not _isNumber(__c):
             return NotImplemented
         return Vector.__direct_new(__c * self.__x, __c * self.__y)
     
-    def __truediv__(self, __c: NumberType) -> "Vector":
+    def __truediv__(self, __c: NumberType) -> Vector:
         if not _isNumber(__c):
             return NotImplemented
         if __c == 0:
             raise ZeroDivisionError
         return Vector.__direct_new(self.__x / __c, self.__y / __c)
     
-    def __floordiv__(self, __c: NumberType) -> "Vector":
+    def __floordiv__(self, __c: NumberType) -> Vector:
         if not _isNumber(__c):
             return NotImplemented
         if __c == 0:
@@ -185,13 +187,13 @@ class Vector:
     def __format__(self, __format_spec: str) -> str:
         return f"({format(self.__x, __format_spec)}, {format(self.__y, __format_spec)})"
 
-    def copy(self) -> "Vector":
+    def copy(self) -> Vector:
         '''
         Return a copied vector.
         '''
         return Vector.__direct_new(self.__x, self.__y)
 
-    def project_on(self, __v: "Vector") -> "Vector":
+    def project_on(self, __v: Vector) -> Vector:
         '''
         Return the projected vector onto ``__v``.
         '''
@@ -199,7 +201,7 @@ class Vector:
             raise ValueError("Cannot project a vector onto a zero vector")
         return __v * ((self * __v) / __v.squared_magnitude)
     
-    def dot(self, __v: "Vector") -> NumberType:
+    def dot(self, __v: Vector) -> NumberType:
         '''
         Return the inner product of itself and the vector.
         '''
@@ -249,7 +251,7 @@ class Vector:
         return self.__x ** 2 + self.__y ** 2
     
     @property
-    def unit(self) -> "Vector":
+    def unit(self) -> Vector:
         '''
         The unit vector of itself.
         '''
@@ -264,41 +266,36 @@ class Vector:
         '''
         return int(self.__x), int(self.__y)
     
-    @classmethod
-    @property
-    def zero(cls) -> "Vector":
+    @classproperty
+    def zero(cls) -> Vector:
         '''
         Return a zero vector.
         '''
         return cls.__direct_new(0, 0)
     
-    @classmethod
-    @property
-    def unit_upward(cls) -> "Vector":
+    @classproperty
+    def unit_upward(cls) -> Vector:
         '''
         Return a unit vector pointing upward.
         '''
         return cls.__direct_new(0, 1)
     
-    @classmethod
-    @property
-    def unit_downward(cls) -> "Vector":
+    @classproperty
+    def unit_downward(cls) -> Vector:
         '''
         Return a unit vector pointing upward.
         '''
         return cls.__direct_new(0, -1)
     
-    @classmethod
-    @property
-    def unit_leftward(cls) -> "Vector":
+    @classproperty
+    def unit_leftward(cls) -> Vector:
         '''
         Return a unit vector pointing rightward.
         '''
         return cls.__direct_new(-1, 0)
     
-    @classmethod
-    @property
-    def unit_rightward(cls) -> "Vector":
+    @classproperty
+    def unit_rightward(cls) -> Vector:
         '''
         Return a unit vector pointing rightward.
         '''

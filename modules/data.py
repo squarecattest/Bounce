@@ -1,6 +1,8 @@
+from __future__ import annotations
 from errorlog import Log
 from constants import DataConstant as Constant
 from resources import Path
+from utils import classproperty
 from random import randint, choice
 from json import load as jsonload, dump as jsondump, JSONDecodeError
 from enum import Flag, auto, CONFORM
@@ -140,13 +142,12 @@ class Achievement(Flag, boundary=CONFORM):
     bounce_high = auto()
     avoid_high_speed_rocket = auto()
 
-    @classmethod
-    @property
-    def default(cls) -> "Literal[Achievement.empty]":
+    @classproperty
+    def default(cls) -> Literal[Achievement.empty]:
         return cls.empty
 
     @classmethod
-    def decrypt(cls, data: str) -> "Achievement":
+    def decrypt(cls, data: str) -> Achievement:
         return cls(integer_decrypt(data, cls.default))
     
     def encrypt(self) -> str:
@@ -154,13 +155,12 @@ class Achievement(Flag, boundary=CONFORM):
     
 
 class HighScore(int):
-    @classmethod
-    @property
-    def default(cls) -> "HighScore":
+    @classproperty
+    def default(cls) -> HighScore:
         return cls(0)
 
     @classmethod
-    def decrypt(cls, data: str) -> "HighScore":
+    def decrypt(cls, data: str) -> HighScore:
         return cls(max(integer_decrypt(data, cls.default) - 1000, 0))
     
     def encrypt(self) -> str:

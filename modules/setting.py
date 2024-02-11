@@ -1,6 +1,8 @@
+from __future__ import annotations
 from language import Language
 from constants import SettingConstant as Constant
-from resources import Path
+from resources import Path, BGM, Sound
+from utils import classproperty
 from dataclasses import dataclass
 from json import load as jsonload, dump as jsondump
 from errorlog import Log
@@ -37,14 +39,16 @@ class Setting:
         return Constant.FPS_CHOICES.index(self.FPS) == Constant.FPS_CHOICE_NUMBER - 1
 
     def set_BGM_volume(self, value: int) -> None:
+        BGM.set_volume(value)
         self.BGM_Volume = value
 
     def set_SE_volume(self, value: int) -> None:
+        Sound.set_volume(value)
         self.SE_Volume = value
 
-    @classmethod
-    @property
-    def default(cls) -> "Setting":
+    @classproperty
+    def default(cls) -> Setting:
+        BGM.set_volume(Constant.DEFAULT_BGM_VOLUME)
         return cls(
             Language[Constant.DEFAULT_LANGUAGE], 
             Constant.DEFAULT_FPS, 
@@ -53,7 +57,7 @@ class Setting:
         )
 
     @staticmethod
-    def load() -> "Setting":
+    def load() -> Setting:
         try:
             with open(Path.SETTING, "r") as file:
                 raw_setting = jsonload(file)
@@ -75,6 +79,7 @@ class Setting:
         match BGM_Volume := raw_setting.get("BGM Volume"):
             case int() if 0 <= BGM_Volume <= 100:
                 setting.BGM_Volume = BGM_Volume
+                BGM.set_volume(BGM_Volume)
         match SE_Volume := raw_setting.get("SE Volume"):
             case int() if 0 <= SE_Volume <= 100:
                 setting.SE_Volume = SE_Volume
