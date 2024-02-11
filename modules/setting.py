@@ -5,7 +5,7 @@ from resources import Path, BGM, Sound
 from utils import classproperty
 from dataclasses import dataclass
 from json import load as jsonload, dump as jsondump
-from errorlog import Log
+from errorlog import log
 
 @dataclass
 class Setting:
@@ -64,7 +64,7 @@ class Setting:
         except FileNotFoundError:
             return Setting.default
         except BaseException as e:
-            Log.log(e)
+            log(e)
             return Setting.default
         if not isinstance(raw_setting, dict):
             return Setting.default
@@ -99,4 +99,4 @@ class Setting:
                     indent=4
                 )
         except BaseException as e:
-            Log.log(e)
+            log(e)

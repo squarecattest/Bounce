@@ -1,5 +1,5 @@
 from __future__ import annotations
-from errorlog import Log
+from errorlog import log
 from constants import DataConstant as Constant
 from resources import Path
 from utils import classproperty
@@ -192,7 +192,7 @@ class Datas:
         except (FileNotFoundError, JSONDecodeError):
             cls.set_default()
         except BaseException as e:
-            Log.log(e)
+            log(e)
             cls.set_default()
 
     @classmethod
@@ -208,6 +208,6 @@ class Datas:
                     indent=4
                 )
         except BaseException as e:
-            Log.log(e)
+            log(e)
 
 Datas.load()
