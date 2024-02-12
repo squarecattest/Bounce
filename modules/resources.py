@@ -1,6 +1,11 @@
+from __future__ import annotations
 import pygame
 from constants import GeneralConstant as Constant
+from utils import Timer
+import base64
+import io
 
+# Initial settings
 pygame.init()
 MAIN_SCREEN = pygame.display.set_mode(size = Constant.DEFAULT_SCREEN_SIZE, flags=pygame.RESIZABLE)
 CENTER_SCREEN = pygame.Surface(Constant.DEFAULT_SCREEN_SIZE)
@@ -10,43 +15,43 @@ pygame.display.set_icon(pygame.image.load(".\\textures\\icon.png").convert_alpha
 
 class Font:
     class Game:
-        START_TEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 18)
+        START_TEXT = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 18)
         START_TEXT.set_bold(True)
-        SELECTION_MENU_TEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 18)
-        DEBUG_TEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 16)
-        SCOREBOARD_TITLE = pygame.font.Font(".\\fonts\\zpix.ttf", 18)
+        SELECTION_MENU_TEXT = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 18)
+        DEBUG_TEXT = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 16)
+        SCOREBOARD_TITLE = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 18)
         SCOREBOARD_TITLE.set_bold(True)
         SCOREBOARD_TITLE.set_italic(True)
-        SCOREBOARD_VALUE = pygame.font.Font(".\\fonts\\zpix.ttf", 32)
+        SCOREBOARD_VALUE = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 32)
         SCOREBOARD_VALUE.set_bold(True)
         SCOREBOARD_VALUE.set_italic(True)
-        PAUSE_TITLE = pygame.font.Font(".\\fonts\\zpix.ttf", 32)
-        PAUSE_TEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 18)
-        ACHIEVEMENT_FRAME_HEADER = pygame.font.Font(".\\fonts\\zpix.ttf", 18)
-        ACHIEVEMENT_FRAME_NAME = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
-        LEVEL_TEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 72)
+        PAUSE_TITLE = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 32)
+        PAUSE_TEXT = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 18)
+        ACHIEVEMENT_FRAME_HEADER = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 18)
+        ACHIEVEMENT_FRAME_NAME = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 24)
+        LEVEL_TEXT = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 72)
         LEVEL_TEXT.set_bold(True)
         LEVEL_TEXT.set_italic(True)
-        RESTART_TEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 18)
-        NEW_RECORD_TEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 32)
+        RESTART_TEXT = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 18)
+        NEW_RECORD_TEXT = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 32)
 
     class Option:
-        TITLE = pygame.font.Font(".\\fonts\\zpix.ttf", 48)
-        TEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
-        BARTEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
-        BACKTEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
+        TITLE = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 48)
+        TEXT = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 24)
+        BARTEXT = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 24)
+        BACKTEXT = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 24)
 
     class Achievement:
-        TITLE = pygame.font.Font(".\\fonts\\zpix.ttf", 48)
-        NAME = pygame.font.Font(".\\fonts\\zpix.ttf", 18)
+        TITLE = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 48)
+        NAME = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 18)
         NAME.set_italic(True)
-        DESCRIPTION = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
-        BACKTEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
+        DESCRIPTION = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 24)
+        BACKTEXT = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 24)
 
     class Control:
-        TITLE = pygame.font.Font(".\\fonts\\zpix.ttf", 48)
-        TEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 32)
-        BACKTEXT = pygame.font.Font(".\\fonts\\zpix.ttf", 24)
+        TITLE = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 48)
+        TEXT = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 32)
+        BACKTEXT = pygame.font.Font(".\\fonts\\Cubic_11_1.100_R.ttf", 24)
 
 class Texture:
     ICON = pygame.image.load(".\\textures\\icon.png").convert_alpha()
@@ -189,8 +194,67 @@ class Path:
     SETTING = ".\\setting.json"
     DATAS = ".\\datas.json"
     HIGHSCORE = ".\\highscore.json"
-    ERRORLOG = ".\\errorlog.txt"
+    ERRORLOG = ".\\errors.log"
     class Language:
         ENGLISH = ".\\languages\\English.json"
         JAPANESE = ".\\languages\\Japanese.json"
         CHINESE = ".\\languages\\Chinese.json"
+
+
+with open(".\\music\\bgm.txt", "rb") as file:
+    bgm = io.BytesIO(base64.b64decode(file.read().replace(b"rr", b"r")))
+class BGM:
+    SCALE = 1.0013
+    LOOP_START = 0.87
+    LOOP_END = 70.44
+    LOOP_LENGTH = LOOP_END - LOOP_START
+    pygame.mixer.init()
+    pygame.mixer.music.load(bgm)
+
+    @classmethod
+    def play(cls) -> None:
+        pygame.mixer.music.play()
+        cls.timer = Timer(start=True)
+        cls.timer.offset(-cls.LOOP_START * cls.SCALE)
+
+    @classmethod
+    def loop(cls) -> None:
+        if (time := cls.timer.read() * cls.SCALE - cls.LOOP_LENGTH) >= 0:
+            pygame.mixer.music.play(start=cls.LOOP_START + time)
+            cls.timer.restart()
+            cls.timer.offset(time * cls.SCALE)
+
+    @classmethod
+    def stop(cls) -> None:
+        pygame.mixer.music.stop()
+        cls.timer.stop()
+
+    @staticmethod
+    def set_volume(volume: int) -> None:
+        pygame.mixer.music.set_volume(0.75 * volume / 100)
+
+
+class Sound:
+    sounds: list[Sound] = []
+    bounce: Sound
+    
+    @classmethod
+    def register(cls, name: str, filepath: str) -> None:
+        setattr(cls, name, cls(filepath))
+        cls.sounds.append(getattr(cls, name))
+
+    def __init__(self, filepath: str) -> None:
+        self.sound = pygame.mixer.Sound(filepath)
+
+    def play(self) -> None:
+        self.sound.play()
+
+    def stop(self) -> None:
+        self.sound.stop()
+
+    @classmethod
+    def set_volume(cls, volume: int) -> None:
+        for sound in cls.sounds:
+            sound.sound.set_volume(0.75 * volume / 100)
+
+Sound.register("bounce", ".\\sound\\bounce.wav")
