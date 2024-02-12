@@ -1,3 +1,4 @@
+from __future__ import annotations
 from pygame import Surface
 from physics import (
     PhysicsGround, 
@@ -16,14 +17,9 @@ from display import (
     DisplayableSlab, 
     DisplayableParticle
 )
-from data import Achievement, HighScore, Datas
-from errorlog import Log
-from constants import (
-    GeneralConstant, 
-    GameConstant as Constant, 
-    InterfaceConstant, 
-    DataConstant
-)
+from data import Achievement, Datas
+from errorlog import log
+from constants import GeneralConstant, GameConstant as Constant, DataConstant
 from resources import Texture, Color
 from utils import Direction, LinkedList, Timer, Ticker, Chance, LinearRange
 from abc import ABC, abstractmethod
@@ -268,7 +264,7 @@ class Rocket(GameObject):
             Alignment.Mode.CENTERED, 
             Alignment.Mode.CENTERED, 
             Alignment.Flag.REFERENCED, 
-            offset=InterfaceConstant.Game.SCREEN_OFFSET
+            offset=GeneralConstant.SCREEN_OFFSET
         )
     )
 
@@ -496,18 +492,18 @@ class LevelGenerator:
                 levels = jsonload(file)
         except BaseException as e:
             self.set_default()
-            Log.log(e)
+            log(e)
             return
         if not isinstance(levels, list):
             self.set_default()
-            Log.log(LevelGenerator.ParserError("Expected an array for the level file"))
+            log(LevelGenerator.ParserError("Expected an array for the level file"))
             return
         for level in levels:
             self.__levels.append(parse(level, length))
             length += 1
         self.__length = length
         if error_args:
-            Log.log(LevelGenerator.ParserError("".join(error_args)))
+            log(LevelGenerator.ParserError("".join(error_args)))
 
     def generate(self) -> Level | None:
         '''
@@ -615,7 +611,7 @@ class BallStatus(NamedTuple):
     bounceable: bool
 
     @classmethod
-    def record(cls, game: "Game") -> "BallStatus":
+    def record(cls, game: Game) -> BallStatus:
         return cls(
             time=game.timer.read(), 
             position=game.ball.entity.position, 
@@ -629,7 +625,7 @@ class BallStatus(NamedTuple):
 
 class Game:
     class RocketEvent:
-        def __init__(self, game: "Game") -> None:
+        def __init__(self, game: Game) -> None:
             self.game = game
             self.ticker = Ticker(
                 Constant.EVENT_ROCKET_TICK, 
@@ -713,7 +709,7 @@ class Game:
             return self.ticker.running
         
     class FallingBallEvent:
-        def __init__(self, game: "Game") -> None:
+        def __init__(self, game: Game) -> None:
             self.game = game
             self.ticker = Ticker(
                 Constant.EVENT_FALLING_BALL_TICK, 
@@ -755,9 +751,8 @@ class Game:
             return self.ticker.running
     
     class AchievementTracer:
-        def __init__(self, game: "Game") -> None:
+        def __init__(self, game: Game) -> None:
             self.game = game
-            self.achievement = Datas.achievement
             self.current = None
             self.max_height = None
             self.last_bounce = None
@@ -789,6 +784,9 @@ class Game:
                 self.long_stay = status
             elif status.level == 1:
                 self.long_stay = None
+
+        def reload(self) -> None:
+            self.__init__(self.game)
 
         def check_achievements(self) -> list[Achievement]:
             def add(achievement: Achievement) -> None:
@@ -983,6 +981,17 @@ class Game:
             self.slab_levels.append(SlabLevel(self.__level_generator))
         self.rocket_event.reload()
         self.falling_ball_event.reload()
+        self.achievement_tracer.reload()
+
+    def revive(self) -> None:
+        self.gameover = False
+        self.ball.remove = False
+        self.ball.entity.position.x = GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2
+        self.ball.entity.position.y = self.reference + Constant.TRACE_HEIGHT
+        self.ball.entity.velocity.x = 0
+        self.ball.entity.velocity.y = 0
+        self.ball.entity.set_onground(False)
+        self.timer.start()
 
     def read_new_achievement(self) -> Achievement | None:
         if self.new_achievements:

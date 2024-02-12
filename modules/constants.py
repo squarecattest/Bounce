@@ -14,7 +14,7 @@ class PhysicsConstant:
     GRAVITY = Vector(0, -960)
     BOUNCE_VELOCITY_RANGE = (480, 525)
     WALL_REFLECT_VELOCITY_MULTIPLIER = 1.25
-    WALL_REFLECT_ALLOWED_DISTANCE = 0.01 #1 ?
+    WALL_REFLECT_ALLOWED_DISTANCE = 0.01
     MAX_BOUNCABLE_DISTANCE = 20
     SLIDING_MULTIPLIER_ONCOLLISION = 3
     UNIT_SHRINK_LENGTH = 12
@@ -31,20 +31,16 @@ class GameConstant:
     SLAB_GAP = 100
     TRACE_HEIGHT = 250
     ORIGINAL_TOP_HEIGHT = 500
-    HIGHSCORE_BITRANDOM_MULTIPLIER = (2, 3.6)
-    HIGHSCORE_BITRANDOM_MINIMUM = 10
-    HIGHSCORE_SCORERANDOM_MULTIPLIER = (2, 3.6)
-    HIGHSCORE_SCORERANDOM_MINIMUM = 20
     ROCKET_HALFSIZE = (75, 50)
     ROCKET_SPEED = 80
     SUPER_ROCKET_SPEED = 500
     FALLING_BALLS = 10
-    EVENT_ROCKET_LEVELS = 50, 200
+    EVENT_ROCKET_LEVELS = 30, 100
     EVENT_ROCKET_CHANCES = 0.1, 0.5
     EVENT_ROCKET_TICK = 5
     EVENT_ROCKET_COOLDOWNS = 60, 10
     EVENT_SUPERROCKET_CHANCE = 0.2
-    EVENT_FALLING_BALL_LEVELS = 100, 200
+    EVENT_FALLING_BALL_LEVELS = 50, 100
     EVENT_FALLING_BALL_CHANCES = 0.1, 0.5
     EVENT_FALLING_BALL_TICK = 5
     EVENT_FALLING_BALL_COOLDOWN = 60
@@ -70,7 +66,7 @@ class GameConstant:
 class DataConstant:
     class Achievement:
         CONTINUOUS_BOUNCE_LEVELS = 30
-        LONG_STAY_SECONDS = 25
+        LONG_STAY_SECONDS = 40
         FAST_ROTATION_FREQUENCY = 30
         FREE_FALL_LEVELS = 3
         BOUNCE_HIGH_HEIGHT = 100000
@@ -137,7 +133,6 @@ class InterfaceConstant:
 
         #-------------------------DERIVED-------------------------#
         DEFAULT_SCREEN_DIAGONAL = Vector(GeneralConstant.DEFAULT_SCREEN_SIZE).magnitude
-        SCREEN_OFFSET = -(Vector(GeneralConstant.DEFAULT_SCREEN_SIZE) // 2)
         DT = 1 / INGAME_FPS
         SCOREBOARD_DISPLAY_POS = Vector(GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 0)
 
@@ -176,8 +171,6 @@ class InterfaceConstant:
         PAGE_TICKER_TICK = 0.03
         PAGE_TICKER_STARTCOOLDOWN = 0.6
 
-        #-------------------------DERIVED-------------------------#
-
     class Control:
         TITLE_POS = Vector(GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 100)
         BACK_TEXT_POS = Vector(GeneralConstant.DEFAULT_SCREEN_SIZE[0] // 2, 580)
@@ -189,7 +182,7 @@ class InterfaceConstant:
     
 
 class SettingConstant:
-    DEFAULT_LANGUAGE = "Japanese"
+    DEFAULT_LANGUAGE = "English"
     DEFAULT_FPS = 120
     DEFAULT_BGM_VOLUME = 100
     DEFAULT_SE_VOLUME = 100

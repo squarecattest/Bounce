@@ -1,3 +1,4 @@
+from __future__ import annotations
 import pygame
 from pygame import Surface
 from pygame.event import Event as pygameEvent
@@ -12,7 +13,7 @@ from display import (
     StaticDisplayable
 )
 from language import Language, TranslateName, Translatable
-from resources import Font, Texture, Color, Path, MAIN_SCREEN
+from resources import Font, Texture, Color, Path, MAIN_SCREEN, BGM, Sound
 from vector import Vector, NumberType
 from physics import _to_degree
 from data import Achievement, HighScore, Datas
@@ -32,7 +33,7 @@ BASIC_ALIGNMENT = Alignment(
     Alignment.Mode.CENTERED, 
     Alignment.Mode.CENTERED, 
     Alignment.Flag.REFERENCED, 
-    offset=Constant.Game.SCREEN_OFFSET
+    offset=GeneralConstant.SCREEN_OFFSET
 )
 
 def save():
@@ -116,7 +117,7 @@ class Interface(ABC):
 
     @abstractmethod
     def display(self, main_screen: Surface, center_screen: Surface, *args, **kwargs) -> None:
-        pass
+        BGM.loop()
 
 
 def CURRENT_CURSOR() -> pygameEvent:
@@ -202,12 +203,12 @@ class GameInterface(Interface):
         CONTROLS = auto()
         QUIT = auto()
 
-        def upper(self) -> "GameInterface.PageSelection":
+        def upper(self) -> GameInterface.PageSelection:
             if self == 1:
                 return self
             return GIP(self - 1)
         
-        def lower(self) -> "GameInterface.PageSelection":
+        def lower(self) -> GameInterface.PageSelection:
             if self == len(GIP):
                 return self
             return GIP(self + 1)
@@ -242,7 +243,7 @@ class GameInterface(Interface):
                 Alignment.Flag.FILL, 
                 Alignment.Flag.REFERENCED, 
                 facing=Alignment.Facing.UP, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             )
         )
         self.start_display = DisplayableTranslatable(
@@ -296,7 +297,7 @@ class GameInterface(Interface):
                     Alignment.Mode.CENTERED, 
                     Alignment.Mode.LEFT, 
                     Alignment.Flag.REFERENCED, 
-                    offset=Constant.Game.SCREEN_OFFSET
+                    offset=GeneralConstant.SCREEN_OFFSET
                 ), 
                 Font.Game.SELECTION_MENU_TEXT, 
                 TranslateName.game_selctionmenu_options, 
@@ -314,7 +315,7 @@ class GameInterface(Interface):
                     Alignment.Mode.CENTERED, 
                     Alignment.Mode.LEFT, 
                     Alignment.Flag.REFERENCED, 
-                    offset=Constant.Game.SCREEN_OFFSET
+                    offset=GeneralConstant.SCREEN_OFFSET
                 ), 
                 Font.Game.SELECTION_MENU_TEXT, 
                 TranslateName.game_selctionmenu_achievements, 
@@ -332,7 +333,7 @@ class GameInterface(Interface):
                     Alignment.Mode.CENTERED, 
                     Alignment.Mode.LEFT, 
                     Alignment.Flag.REFERENCED, 
-                    offset=Constant.Game.SCREEN_OFFSET
+                    offset=GeneralConstant.SCREEN_OFFSET
                 ), 
                 Font.Game.SELECTION_MENU_TEXT, 
                 TranslateName.game_selctionmenu_controls, 
@@ -350,7 +351,7 @@ class GameInterface(Interface):
                     Alignment.Mode.CENTERED, 
                     Alignment.Mode.LEFT, 
                     Alignment.Flag.REFERENCED, 
-                    offset=Constant.Game.SCREEN_OFFSET
+                    offset=GeneralConstant.SCREEN_OFFSET
                 ), 
                 Font.Game.SELECTION_MENU_TEXT, 
                 TranslateName.game_selctionmenu_quit, 
@@ -486,6 +487,8 @@ class GameInterface(Interface):
     def __tick(self) -> None:
         ticks = int(Constant.Game.INGAME_FPS * self.tick_timer.read())
         self.tick_timer.offset(-ticks * Constant.Game.DT)
+        if self.bounce and self.game.ball.entity.bounceable:
+            Sound.bounce.play()
         self.game.tick(Constant.Game.DT, self.bounce)
         self.bounce = False
         for _ in range(min(100, ticks - 1)):
@@ -516,8 +519,13 @@ class GameInterface(Interface):
         self.debug_msgs.clear()
         self.selection = GIP.OPTIONS
 
+    def __revive(self) -> None:
+        self.game.revive()
+        self.status &= ~(GIS.GAMEOVER | GIS.RESTART_SCREEN)
+        self.status |= GIS.STARTED
+
     def __test(self) -> None:
-        pass
+        raise RecursionError
 
     def __handle_event(self, event: Event) -> None:
         match event:
@@ -541,6 +549,7 @@ class GameInterface(Interface):
                 Datas.highscore = HighScore(self.height)
             case GIE.GAME_GAMEOVER:
                 self.transform_timer.restart()
+                BGM.stop()
                 self.status = GIS.GAMEOVER | (self.status & GIS.DISPLAY_ACHIEVEMENT)
             case GIE.GAME_TO_RESTART_SCREEN:
                 self.height = int(self.height)
@@ -550,6 +559,7 @@ class GameInterface(Interface):
                 self.transform_timer.restart()
                 self.status = GIS.RESTART_SCREEN | (self.status & GIS.DISPLAY_ACHIEVEMENT)
             case GIE.GAME_RESTART:
+                BGM.stop()
                 self.blackscene_display.surface.fill(Color.BLACK)
                 self.blackscene_display.surface = \
                     self.blackscene_display.surface.convert_alpha()
@@ -561,6 +571,7 @@ class GameInterface(Interface):
                 self.transform_timer.restart()
                 self.blackscene_display.surface.set_colorkey(Color.TRANSPARENT_COLORKEY)
                 self.new_record = False
+                BGM.play()
                 self.status = GIS.RELOADING | (self.status & GIS.DISPLAY_ACHIEVEMENT)
                 self.add_event(CURRENT_CURSOR())
             case GIE.GAME_RELOADED:
@@ -848,6 +859,7 @@ class GameInterface(Interface):
             set_FPS: int, 
             real_FPS: int
         ) -> None:
+        super().display(main_screen, center_screen)
         Interface.BACKGROUND.display(main_screen)
         center_screen.fill(Color.WHITE)
         if not (GIS.PAUSE | GIS.PAUSE_CONFIRM) & self.status:
@@ -919,7 +931,7 @@ class GameInterface(Interface):
                     Alignment.Mode.CENTERED, 
                     Alignment.Mode.LEFT, 
                     Alignment.Flag.REFERENCED, 
-                    offset=Constant.Game.SCREEN_OFFSET
+                    offset=GeneralConstant.SCREEN_OFFSET
                 ), 
                 Font.Game.LEVEL_TEXT, 
                 str(level), 
@@ -931,7 +943,7 @@ class GameInterface(Interface):
                     Alignment.Mode.CENTERED, 
                     Alignment.Mode.LEFT, 
                     Alignment.Flag.REFERENCED, 
-                    offset=Constant.Game.SCREEN_OFFSET
+                    offset=GeneralConstant.SCREEN_OFFSET
                 ), 
                 Font.Game.LEVEL_TEXT, 
                 str(level), 
@@ -947,7 +959,7 @@ class GameInterface(Interface):
             Alignment.Mode.CENTERED, 
             Alignment.Mode.LEFT, 
             Alignment.Flag.REFERENCED, 
-            offset=Constant.Game.SCREEN_OFFSET
+            offset=GeneralConstant.SCREEN_OFFSET
         )
         DisplayableTranslatable(
             Vector(6, 10), 
@@ -1135,7 +1147,7 @@ class GameInterface(Interface):
             Alignment.Mode.CENTERED, 
             Alignment.Mode.LEFT, 
             Alignment.Flag.REFERENCED, 
-            offset=Constant.Game.SCREEN_OFFSET
+            offset=GeneralConstant.SCREEN_OFFSET
         )
         ball_entity = self.game.ball.entity
         debug_texts = [
@@ -1305,11 +1317,11 @@ class OptionInterface(Interface):
         BGM = auto()
         SE = auto()
         BACK = auto()
-        def __lshift__(self, one: Literal[1]) -> "OptionInterface.PageSelection":
+        def __lshift__(self, one: Literal[1]) -> OptionInterface.PageSelection:
             if self == 1:
                 return self
             return OIP(self - 1)
-        def __rshift__(self, one: Literal[1]) -> "OptionInterface.PageSelection":
+        def __rshift__(self, one: Literal[1]) -> OptionInterface.PageSelection:
             if self == len(OIP):
                 return self
             return OIP(self + 1)
@@ -1352,7 +1364,7 @@ class OptionInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.LEFT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             ), 
             Font.Option.TEXT, 
             TranslateName.option_language, 
@@ -1370,7 +1382,7 @@ class OptionInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.LEFT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             ), 
             Font.Option.TEXT, 
             TranslateName.option_fps, 
@@ -1388,7 +1400,7 @@ class OptionInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.LEFT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             ), 
             Font.Option.TEXT, 
             TranslateName.option_bgm, 
@@ -1406,7 +1418,7 @@ class OptionInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.LEFT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             ), 
             Font.Option.TEXT, 
             TranslateName.option_se, 
@@ -1425,7 +1437,7 @@ class OptionInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.LEFT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             ), 
             Font.Option.BACKTEXT, 
             TranslateName.option_back, 
@@ -1454,7 +1466,7 @@ class OptionInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.LEFT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             )
         )
         self.language_bar_right_arrow = StaticDisplayable(
@@ -1468,7 +1480,7 @@ class OptionInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.RIGHT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             )
         )
         self.language_bar_left_arrow_pressed = StaticDisplayable(
@@ -1482,7 +1494,7 @@ class OptionInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.LEFT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             )
         )
         self.language_bar_right_arrow_pressed = StaticDisplayable(
@@ -1496,7 +1508,7 @@ class OptionInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.RIGHT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             )
         )
         self.language_bar_text = DisplayableTranslatable(
@@ -1531,7 +1543,7 @@ class OptionInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.LEFT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             )
         )
         self.FPS_bar_right_arrow = StaticDisplayable(
@@ -1545,7 +1557,7 @@ class OptionInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.RIGHT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             )
         )
         self.FPS_bar_left_arrow_pressed = StaticDisplayable(
@@ -1559,7 +1571,7 @@ class OptionInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.LEFT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             )
         )
         self.FPS_bar_right_arrow_pressed = StaticDisplayable(
@@ -1573,7 +1585,7 @@ class OptionInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.RIGHT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             )
         )
         self.FPS_bar_text = DisplayableText(
@@ -1628,6 +1640,7 @@ class OptionInterface(Interface):
                 self.__handle_event(OIE.UNIT_VOLUME_DOWN)
 
     def display(self, main_screen: Surface, center_screen: Surface) -> None:
+        super().display(main_screen, center_screen)
         self.__tick()
         Interface.BACKGROUND.display(main_screen)
         Interface.BACKGROUND.display(center_screen)
@@ -1970,7 +1983,7 @@ class OptionInterface(Interface):
                 return OIE.CLICKRELEASE
             case pygame.MOUSEMOTION if self.status & OIS.MOUSE_VOLUME_CHANGE:
                 position_x = event.pos[0] - MAIN_SCREEN.get_size()[0] // 2 \
-                    - Constant.Game.SCREEN_OFFSET.x
+                    - GeneralConstant.SCREEN_OFFSET.x
                 barsize = Texture.OPTION_VOLUME_BAR.get_size()[0]
                 x_range = (
                     Constant.Option.BARS_XPOS - barsize / 2, 
@@ -2415,6 +2428,7 @@ class AchievementInterface(Interface):
                 self.__handle_event(AIE.UNIT_PAGE_DOWN)
 
     def display(self, main_screen: Surface, center_screen: Surface) -> None:
+        super().display(main_screen, center_screen)
         self.__tick()
         Interface.BACKGROUND.display(main_screen)
         Interface.BACKGROUND.display(center_screen)
@@ -2718,7 +2732,7 @@ class ControlInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.LEFT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             ), 
             Font.Control.TEXT, 
             TranslateName.control_debug, 
@@ -2744,7 +2758,7 @@ class ControlInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.LEFT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             ), 
             Font.Control.TEXT, 
             TranslateName.control_bounce, 
@@ -2768,7 +2782,7 @@ class ControlInterface(Interface):
                 Alignment.Mode.CENTERED, 
                 Alignment.Mode.LEFT, 
                 Alignment.Flag.REFERENCED, 
-                offset=Constant.Game.SCREEN_OFFSET
+                offset=GeneralConstant.SCREEN_OFFSET
             ), 
             Font.Control.TEXT, 
             TranslateName.control_pause, 
@@ -2789,6 +2803,7 @@ class ControlInterface(Interface):
         )
 
     def display(self, main_screen: Surface, center_screen: Surface) -> None:
+        super().display(main_screen, center_screen)
         Interface.BACKGROUND.display(main_screen)
         Interface.BACKGROUND.display(center_screen)
         self.title_display.display(center_screen)
@@ -2870,3 +2885,5 @@ AIS = AchievementInterface.Status
 CI = ControlInterface
 CIE = ControlInterface.Event
 CIS = ControlInterface.Status
+
+BGM.play()
