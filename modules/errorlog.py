@@ -1,23 +1,21 @@
 from constants import ErrorlogConstant as Constant
 from resources import Path
-from threading import Thread
-from traceback import print_exception
-from datetime import datetime
+import logging
+
+_LOGS_LEFT = Constant.MAX_LOGS
+logging.basicConfig(
+    filename=Path.ERRORLOG, 
+    filemode="a", 
+    format="\n[%(asctime)s]\n[%(levelname)s]\n", 
+    encoding="UTF-8"
+)
 
 class OutOfLogs(Exception):
     pass
 
-_LOGS_LEFT = Constant.MAX_LOGS
-
-def _write(error: BaseException):
-    with open(Path.ERRORLOG, "a") as file:
-        print(f"[{datetime.now()}]", file=file)
-        print_exception(error, file=file)
-        print(file=file)
-
-def log(error: BaseException) -> None:
+def log(e: BaseException) -> None:
     global _LOGS_LEFT
     if _LOGS_LEFT == 0:
         raise OutOfLogs
     _LOGS_LEFT -= 1
-    Thread(target=_write, args=(error, )).start()
+    logging.exception(e)
