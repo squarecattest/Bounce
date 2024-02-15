@@ -257,4 +257,4 @@ class Sound:
         for sound in cls.sounds:
             sound.sound.set_volume(0.75 * volume / 100)
 
-Sound.register("bounce", ".\\sound\\bounce.wav")
+Sound.register("bounce", ".\\sounds\\bounce.wav")

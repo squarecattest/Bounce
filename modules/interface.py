@@ -525,7 +525,7 @@ class GameInterface(Interface):
         self.status |= GIS.STARTED
 
     def __test(self) -> None:
-        raise RecursionError
+        pass
 
     def __handle_event(self, event: Event) -> None:
         match event:
