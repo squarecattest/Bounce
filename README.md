@@ -2,7 +2,7 @@
 A kusoge which only need one button to play, bouncing toward the other side of the universe.  
 一款只需要一個按鍵，只需要往上跳的小糞game。中文版說明列於中段。  
 ボタン一つだけでプレイできるクソゲーです。日本語の説明は下半に書いてあります。
-![](https://github.com/squarecattest/Bounce/blob/main/images/readme.png)
+![](./images/readme.png)
 
 For those who are not familiar to Github, download the files [here](about:blank).  
 不熟悉Github的用戶請在[這裡](about:blank)下載。  
@@ -41,7 +41,7 @@ The background music is licensed [here](https://nagumorizu.studio.site/wWph5RW1/
 ### Others
 Any other resource is licensed by [the Unlicense](https://unlicense.org/).
 
-## Credit
+## Credits
 ### BGM
 Magic Item Shop - by 南雲莉翠  
 [Youtube](https://www.youtube.com/@nagumorizu)  
@@ -84,25 +84,25 @@ py .
 
 ## 授權
 ### 字型
-使用的字型遵循[SIL開源字型授權條款v1.1](https://openfontlicense.org/), which is also appended [here](./fonts/OFL.txt).
-### BGM
-The background music is licensed [here](https://nagumorizu.studio.site/wWph5RW1/tos).
-### Others
-Any other resource is licensed by [the Unlicense](https://unlicense.org/).
+使用的字型遵循[SIL開源字型授權條款v1.1](https://openfontlicense.org/)。授權條款也附於[此處](./fonts/OFL.txt)。
+### 背景音樂
+使用的背景音樂遵循[此處](https://nagumorizu.studio.site/wWph5RW1/tos)記述的使用條款。
+### 其他
+任何其他資源遵循[Unlicense](https://unlicense.org/)。
 
-## Credit
-### BGM
-Magic Item Shop - by 南雲莉翠  
+## Credits
+### 背景音樂
+Magic Item Shop - 作曲：南雲莉翠  
 [Youtube](https://www.youtube.com/@nagumorizu)  
-[X (formerly Twitter)](https://twitter.com/nagumorizu)  
-[Homepage](https://nagumorizu.studio.site/)
-### Font
+[X (原Twitter)](https://twitter.com/nagumorizu)  
+[首頁](https://nagumorizu.studio.site/)
+### 字型
 Cubic 11 - by ACh  
-[Source code](https://github.com/ACh-K/Cubic-11)
-### SE
+[原始碼](https://github.com/ACh-K/Cubic-11)
+### 音效
 bounce sound - from sfxr by Tomas Pettersson  
-[Website](https://sfxr.me/)  
-[Homepage](http://www.drpetter.se/project_sfxr.html)  
-[Source code](https://github.com/chr15m/jsfxr)
+[網站](https://sfxr.me/)  
+[首頁](http://www.drpetter.se/project_sfxr.html)  
+[原始碼](https://github.com/chr15m/jsfxr)
 
 # 日本語版
