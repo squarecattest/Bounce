@@ -17,8 +17,8 @@ Python 3.12 and above.
 
 ## Setup
 The setup instructions are based on Windows OS. For macOS and Unix users, the setup may be different.
-### Download python
-Go to the [official website](https://www.python.org/downloads/) and download the desired version (3.12+) of python. *Remember to add python to path at the setup page.*
+### Install python
+Go to the [official website](https://www.python.org/downloads/), download and then install the desired version (3.12+) of python. *Remember to add python to path at the setup page.*
 ### Download repository
 [Download](https://github.com/squarecattest/Bounce/releases) the files to any suitable environment. After downloading, open the PowerShell in that folder.
 ### Install packages
@@ -60,14 +60,14 @@ bounce sound - from sfxr by Tomas Pettersson
 # 中文版
 ## 系統需求
 ### 作業系統
-Windows 10 （或以上）。可能支援macOS和Unix系統。
+Windows 10（或以上）。可能支援macOS和Unix系統。
 ### Python
 Python 3.12或以上。
 
 ## 設置
 本設置說明基於Windows作業系統。對於macOS和Unix的用戶，設置過程可能略有不同。
-### 下載python
-在[官網](https://www.python.org/downloads/)下載適合的python版本（3.12+）。*在安裝介面記得將python新增至系統路徑（add python to PATH）。*
+### 安裝python
+在[官網](https://www.python.org/downloads/)下載並安裝適合的python版本（3.12+）。*在安裝介面記得將python新增至系統路徑（add python to PATH）。*
 ### 下載檔案
 將檔案[下載](https://github.com/squarecattest/Bounce/releases)至適合的環境。下載完後，在該資料夾中開啟PowerShell。
 ### 安裝套件
@@ -106,3 +106,49 @@ bounce sound - from sfxr by Tomas Pettersson
 [原始碼](https://github.com/chr15m/jsfxr)
 
 # 日本語版
+## 動作環境
+### オペレーティングシステム
+Windows 10以降。macOSあるいはUnixで実行できる可能性があります。
+### Python
+Python 3.12以降。
+
+## セットアップ
+このセットアップ指示はWindowsの方向けの内容です。オペレーティングシステムによって若干異なりますので、ご注意ください。
+### Pythonをインストール
+[公式サイト](https://www.python.org/downloads/)で適切なバージョン（3.12+）をダウンロードしてインストールします。*「Add python to PATH」のチェックをご確認ください。*
+### リポジトリをダウンロード
+[リポジトリ](https://github.com/squarecattest/Bounce/releases)を適切な環境にダウンロードし、そのフォルダーでPowerShellを起動します。
+### パッケージをインストール
+PowerShellで以下のコマンドを実行します：
+```script
+pip install -r requirements.txt
+```  
+Windowsの方はその代わりにフォルダー内の`packages.bat`ファイルの実行もできます。
+### コードを実行
+PowerShellで以下のコマンドを実行します：
+```script
+py .
+```  
+
+## ライセンス
+### フォント
+フォントは[SIL Open Font License 1.1](https://openfontlicense.org/)が適用されます。[ここ](./fonts/OFL.txt)でも記述されています。
+### BGM
+BGMは[この利用規約](https://nagumorizu.studio.site/wWph5RW1/tos)が適用されます。
+### 他
+他のリソースは[Unlicense](https://unlicense.org/)が適用されます。
+
+## クレジット
+### BGM
+Magic Item Shop - 南雲莉翠 様  
+[Youtube](https://www.youtube.com/@nagumorizu)  
+[X (元Twitter)](https://twitter.com/nagumorizu)  
+[ホームページ](https://nagumorizu.studio.site/)
+### フォント
+Cubic 11 - ACh 様  
+[ソースコード](https://github.com/ACh-K/Cubic-11)
+### SE
+バウンド - Tomas Pettersson 様 による sfxr  
+[サイト](https://sfxr.me/)  
+[ホームページ](http://www.drpetter.se/project_sfxr.html)  
+[ソースコード](https://github.com/chr15m/jsfxr)
