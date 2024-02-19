@@ -1,8 +1,7 @@
 from __future__ import annotations
-from vector import Vector, NumberType, LengthType, VectorType, SizeType
-from constants import GeneralConstant, PhysicsConstant as Constant
-from utils import Direction
-from enum import Enum, auto
+from .vector import Vector, NumberType, LengthType, VectorType, SizeType
+from .constants import GeneralConstant, PhysicsConstant as Constant
+from .utils import Direction
 from abc import ABC, abstractmethod
 from typing import Literal, Iterable, NoReturn
 from itertools import product

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import pygame
-from constants import GeneralConstant as Constant
-from utils import Timer
+from .constants import GeneralConstant as Constant
+from .utils import Timer
 import base64
 import io
 

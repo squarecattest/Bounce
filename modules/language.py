@@ -1,7 +1,7 @@
 from __future__ import annotations
 from json import load as jsonload
 from enum import IntEnum, StrEnum, auto
-from resources import Path
+from .resources import Path
 
 class Language(IntEnum):
     English = auto()

@@ -3,8 +3,8 @@ import pygame
 from pygame import Surface
 from pygame.event import Event as pygameEvent
 from pygame import draw
-from game import Game, get_level, get_height
-from display import (
+from .game import Game, get_level, get_height
+from .display import (
     Alignment, 
     Displayable, 
     DisplayableBall, 
@@ -12,14 +12,14 @@ from display import (
     DisplayableTranslatable, 
     StaticDisplayable
 )
-from language import Language, TranslateName, Translatable
-from resources import Font, Texture, Color, Path, MAIN_SCREEN, BGM, Sound
-from vector import Vector, NumberType
-from physics import _to_degree
-from data import Achievement, HighScore, Datas
-from setting import Setting
-from utils import LinearRange, Timer, Ticker, Chance, time_string
-from constants import GeneralConstant, InterfaceConstant as Constant
+from .language import Language, TranslateName, Translatable
+from .resources import Font, Texture, Color, Path, MAIN_SCREEN, BGM, Sound
+from .vector import Vector, NumberType
+from .physics import _to_degree
+from .data import Achievement, HighScore, Datas
+from .setting import Setting
+from .utils import LinearRange, Timer, Ticker, Chance, time_string
+from .constants import GeneralConstant, InterfaceConstant as Constant
 from random import randint
 from collections import deque
 from enum import Enum, IntEnum, Flag, auto

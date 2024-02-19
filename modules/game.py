@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pygame import Surface
-from physics import (
+from .physics import (
     PhysicsGround, 
     PhysicsWall, 
     PhysicsSlab, 
@@ -9,19 +9,19 @@ from physics import (
     PhysicsParticle, 
     PhysicsObject
 )
-from vector import _isNumber, NumberType, VectorType, Vector
-from display import (
+from .vector import _isNumber, NumberType, VectorType, Vector
+from .display import (
     Alignment, 
     Displayable, 
     DisplayableBall, 
     DisplayableSlab, 
     DisplayableParticle
 )
-from data import Achievement, Datas
-from errorlog import log
-from constants import GeneralConstant, GameConstant as Constant, DataConstant
-from resources import Texture, Color
-from utils import Direction, LinkedList, Timer, Ticker, Chance, LinearRange
+from .data import Achievement, Datas
+from .errorlog import log
+from .constants import GeneralConstant, GameConstant as Constant, DataConstant
+from .resources import Texture, Color
+from .utils import Direction, LinkedList, Timer, Ticker, Chance, LinearRange
 from abc import ABC, abstractmethod
 from collections import deque
 from itertools import product

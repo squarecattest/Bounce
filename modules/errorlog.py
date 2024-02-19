@@ -1,5 +1,5 @@
-from constants import ErrorlogConstant as Constant
-from resources import Path
+from .constants import ErrorlogConstant as Constant
+from .resources import Path
 import logging
 
 _LOGS_LEFT = Constant.MAX_LOGS

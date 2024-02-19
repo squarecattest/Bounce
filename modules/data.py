@@ -1,8 +1,8 @@
 from __future__ import annotations
-from errorlog import log
-from constants import DataConstant as Constant
-from resources import Path
-from utils import classproperty
+from .errorlog import log
+from .constants import DataConstant as Constant
+from .resources import Path
+from .utils import classproperty
 from random import randint, choice
 from json import load as jsonload, dump as jsondump, JSONDecodeError
 from enum import Flag, auto, CONFORM

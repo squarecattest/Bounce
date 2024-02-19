@@ -1,9 +1,9 @@
 from pygame import Surface, Color as pgColor
 from pygame.font import Font
 from pygame.transform import rotate
-from vector import Vector, NumberType
-from language import Language, TranslateName, Translatable
-from resources import Color
+from .vector import Vector, NumberType
+from .language import Language, TranslateName, Translatable
+from .resources import Color
 from enum import Enum, Flag, auto
 from itertools import product
 from functools import reduce

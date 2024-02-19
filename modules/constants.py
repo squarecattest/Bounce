@@ -1,4 +1,4 @@
-from vector import Vector
+from .vector import Vector
 from math import pi
 from string import ascii_letters
 

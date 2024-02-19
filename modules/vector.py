@@ -1,7 +1,6 @@
 from __future__ import annotations
-from utils import classproperty
-from collections.abc import Iterable, Generator
-from typing import overload, Literal, Union
+from .utils import classproperty
+from typing import Iterable, Generator, overload, Literal, Union
 from math import isfinite
 
 type NumberType = Union[int, float]

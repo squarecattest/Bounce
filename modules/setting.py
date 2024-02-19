@@ -1,11 +1,11 @@
 from __future__ import annotations
-from language import Language
-from constants import SettingConstant as Constant
-from resources import Path, BGM, Sound
-from utils import classproperty
+from .language import Language
+from .errorlog import log
+from .constants import SettingConstant as Constant
+from .resources import Path, BGM, Sound
+from .utils import classproperty
 from dataclasses import dataclass
 from json import load as jsonload, dump as jsondump
-from errorlog import log
 
 @dataclass
 class Setting:
