@@ -4,9 +4,9 @@ A kusoge which only need one button to play, bouncing toward the other side of t
 ボタン一つだけでプレイできるクソゲーです。日本語の説明は下半に書いてあります。
 ![](./images/readme.png)
 
-For Windows users who are not familiar to Github, you can also download the files  from [MEGA](https://mega.nz/folder/8Zk3CLgL#hvHz4LAo_ctMnYyJixj7Yw) (no setup needed).  
-不熟悉Github的Windows用戶也可以從[MEGA](https://mega.nz/folder/8Zk3CLgL#hvHz4LAo_ctMnYyJixj7Yw)下載（無須額外設置）。  
-Githubに慣れていないWindowsの方は[MEGA](https://mega.nz/folder/8Zk3CLgL#hvHz4LAo_ctMnYyJixj7Yw)からもダウンロードできます（セットアップ不要）。
+Windows users can also download executable files from [MEGA](https://mega.nz/folder/8Zk3CLgL#hvHz4LAo_ctMnYyJixj7Yw) (no setup needed).  
+Windows用戶也可以直接從[MEGA](https://mega.nz/folder/8Zk3CLgL#hvHz4LAo_ctMnYyJixj7Yw)下載執行檔（無須額外設置）。  
+Windowsの方は[MEGA](https://mega.nz/folder/8Zk3CLgL#hvHz4LAo_ctMnYyJixj7Yw)からも実行ファイルがダウンロードできます（セットアップ不要）。
 
 # English version
 ## Requirements
