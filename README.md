@@ -11,7 +11,7 @@ Windowsの方は[MEGA](https://mega.nz/folder/8Zk3CLgL#hvHz4LAo_ctMnYyJixj7Yw)�
 # English version
 ## Requirements
 ### OS
-Windows 10 and above (tested). Likely works on macOS and Unix.
+Windows 10 and above (tested). Currently not working on macOS or Unix.
 ### Python
 Python 3.12 and above.
 
